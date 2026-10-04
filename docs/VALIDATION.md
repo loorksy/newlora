@@ -8,17 +8,17 @@ Checked 2026-10-04. This is an independent implementation, with real persistence
 |---|---|
 | Python lint/format | Ruff passes |
 | Python types | mypy passes on all 20 API modules |
-| Backend suite | 38 tests pass with SQLite; PostgreSQL rerun recorded below |
+| Backend suite | 38 tests pass with SQLite and PostgreSQL 17 |
 | Official SDK adapters | Mocked OpenAI/Anthropic/Z.AI clients exercise public text, tools, images, usage and private-field exclusion |
 | Voice authorization | Mocked official Live, Realtime client-secret and Realtime SDP-broker APIs; ownership, secret exclusion and trusted usage deduplication |
-| PostgreSQL persistence | 36-test suite passed against PostgreSQL 17 before the final two voice tests; no SQLite-only row-lock claim |
+| PostgreSQL persistence | All 38 tests pass against PostgreSQL 17; restart/fencing tests use actual PostgreSQL row locks |
 | Arabic mocked E2E | Structured intent → OANDA HTTP normalization → rendered-image fixture → multimodal input → recommendation → persistent monitoring → outbox/push simulation |
 | Restart behavior | Expired leases, stale fencing, serialized conversation claims, occurrence/effect idempotency and original-history preservation tested |
 | TypeScript | Type checks and ESLint pass |
 | Mobile components | 9 Jest tests cover Arabic/English direction, drawer, Welcome chart exclusion, chat events, optional recommendation fields, selection artifacts, settings and bridge rejection |
 | Chart bridge | 2 Vitest tests pass |
 | Real chart renderer | Chromium runs the built KLineChart Pro bundle, renders Arabic labels and deterministic annotations, and creates actual PNG pixels |
-| Android | arm64-v8a preview APK built; APK signature verified. Final native-export rebuild is recorded below |
+| Android | Final arm64-v8a preview APK including native Save/Share built successfully; APK signature verified |
 | Docker images | API and browser production Dockerfiles build successfully |
 | Docker services | Fresh Alembic migration, API auth/settings/Arabic conversation/queue, worker, scheduler, notifier and voice heartbeat startup passed against actual PostgreSQL/Redis |
 | Browser container | Authenticated high-resolution PNG render passes with non-root Chromium sandbox, read-only root filesystem, no-new-privileges and all capabilities dropped; loopback browsing is blocked by the public-only proxy |
@@ -45,3 +45,15 @@ The image fixtures used by tests are not production responses. The actual browse
 - External LLM calls and push delivery cannot promise exactly-once behavior across a crash. Stored effects use durable keys and leases; a nondeterministic replan that changes mutation arguments can still require duplicate reconciliation. No live reliability/SLA or independent security audit is claimed.
 
 See README for exact commands and CI workflows. Generated APKs, screenshots, credentials and test databases are excluded from Git.
+
+## Evaluation APK
+
+Built with JDK 17 / Android SDK 36 / React Native 0.81.5, using `assemblePreview -PreactNativeArchitectures=arm64-v8a`. It includes the JavaScript bundle and uses the development signing identity.
+
+SHA-256: `76984b3a2156b40858953b6498f168c56ee994fc3d2d846ac80d12e8486126a6`. Local output: `apps/mobile/android/app/build/outputs/apk/preview/app-preview.apk`. The Android workflow uploads CI builds as artifacts; hashes differ when build inputs/environment differ.
+
+## GitHub checks
+
+The first remote CI and Android workflow runs were rejected before any steps started. GitHub annotation: “The job was not started because your account is locked due to a billing issue.” Runs: https://github.com/loorksy/newlora/actions/runs/37205105794 and https://github.com/loorksy/newlora/actions/runs/37205105792 . Local test/build results above remain valid; remote CI is not passing and must be rerun after the account issue is resolved.
+
+The GitHub release-upload endpoint returned HTTP 400 `Bad Content-Length`, including for a small checksum file. The empty draft release was removed; no APK is hosted on GitHub by this session. The verified local APK and build workflow are retained.
