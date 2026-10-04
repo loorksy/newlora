@@ -1,0 +1,14 @@
+.git
+.env
+.venv
+**/node_modules
+**/build
+**/.gradle
+**/google-services.json
+**/local.properties
+**/*.keystore
+__pycache__
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache

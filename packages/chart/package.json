@@ -1,0 +1,1 @@
+{"name":"@newlora/chart","version":"0.1.0","private":true,"type":"module","scripts":{"build":"tsc --noEmit && vite build","typecheck":"tsc --noEmit","test":"vitest run"},"dependencies":{"@klinecharts/pro":"0.1.1","klinecharts":"9.8.12","@newlora/contracts":"0.1.0"},"devDependencies":{"vite":"^6.0.0","vitest":"^3.0.0"}}

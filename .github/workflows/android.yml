@@ -1,0 +1,35 @@
+name: Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'feat/**']
+    paths: ['apps/mobile/**', 'packages/contracts/**', 'package-lock.json', '.github/workflows/android.yml']
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - name: Optional Firebase application configuration
+        env: {FIREBASE_ANDROID_JSON: '${{ secrets.FIREBASE_ANDROID_JSON }}'}
+        run: |
+          if [ -n "$FIREBASE_ANDROID_JSON" ]; then
+            printf '%s' "$FIREBASE_ANDROID_JSON" > apps/mobile/android/app/google-services.json
+          fi
+      - name: Install Android SDK components
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+      - name: Build self-contained preview APK
+        working-directory: apps/mobile/android
+        run: ./gradlew --no-daemon assemblePreview -PreactNativeArchitectures=arm64-v8a,x86_64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: newlora-preview-apk
+          path: apps/mobile/android/app/build/outputs/apk/preview/*.apk
+          retention-days: 14
