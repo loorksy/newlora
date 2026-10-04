@@ -1,4 +1,5 @@
 import json
+from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy import select
 
@@ -48,7 +49,7 @@ async def context(owner: str, session_id: str) -> list[dict]:
     return result + [{"role": m.role, "content": m.content} for m in reversed(rows)]
 
 
-async def compact(owner, session_id, call):
+async def compact(owner, session_id, call, fence_transaction=None):
     async with sessions() as db:
         previous = await db.scalar(
             select(Record)
@@ -90,6 +91,8 @@ async def compact(owner, session_id, call):
         agent_type="memory",
     )
     async with sessions() as db:
+        if fence_transaction:
+            await fence_transaction(db)
         # Session runs are serialized; cursor and summary commit together.
         db.add(
             Record(
@@ -107,9 +110,16 @@ async def compact(owner, session_id, call):
 
 
 async def revise_fact(
-    owner: str, key: str, value: str, source: str, expected_version: int | None = None
+    owner: str,
+    key: str,
+    value: str,
+    source: str,
+    expected_version: int | None = None,
+    fence_transaction=None,
 ):
     async with sessions() as db:
+        if fence_transaction:
+            await fence_transaction(db)
         row = await db.scalar(
             select(Record)
             .where(Record.owner == owner, Record.kind == "memory", Record.session_id == key)
@@ -117,12 +127,22 @@ async def revise_fact(
         )
         if row and expected_version is not None and row.version != expected_version:
             raise ValueError("memory_revision_conflict")
+        if row is None and expected_version not in (None, 0):
+            raise ValueError("memory_revision_conflict")
+        if row and row.data.get("value") == value and row.data.get("source") == source:
+            return
         before = row.data if row else None
         data = {"key": key, "value": value, "source": source}
         if row:
             row.data, row.version, row.updated_at = data, row.version + 1, now()
         else:
-            row = Record(owner=owner, kind="memory", session_id=key, data=data)
+            row = Record(
+                id=str(uuid5(NAMESPACE_URL, owner + ":memory:" + key)),
+                owner=owner,
+                kind="memory",
+                session_id=key,
+                data=data,
+            )
             db.add(row)
         db.add(
             Record(
@@ -135,7 +155,7 @@ async def revise_fact(
         await db.commit()
 
 
-async def consolidate(owner, session_id, call):
+async def consolidate(owner, session_id, call, fence_transaction=None):
     async with sessions() as db:
         all_rows = (
             await db.scalars(
@@ -175,8 +195,19 @@ async def consolidate(owner, session_id, call):
     data = json.loads(reply.text)
     for fact in data.get("facts", [])[:20]:
         if fact["key"].startswith(("USER.", "AGENT.", "MEMORY.")):
-            await revise_fact(owner, fact["key"][:100], str(fact["value"])[:2000], pending[-1].id)
+            await revise_fact(
+                owner,
+                fact["key"][:100],
+                str(fact["value"])[:2000],
+                pending[-1].id,
+                expected_version=next(
+                    (r.version for r in facts if r.session_id == fact["key"][:100]), 0
+                ),
+                fence_transaction=fence_transaction,
+            )
     async with sessions() as db:
+        if fence_transaction:
+            await fence_transaction(db)
         for r in pending:
             current = await db.get(Record, r.id)
             current.data = {**current.data, "consolidated": True}

@@ -208,7 +208,7 @@ class Runtime:
             raise PublicError("model_not_configured", 409)
         await validate_selection(self.owner, self.selection)
         await self.activity("agent_started")
-        await memory.compact(self.owner, self.session_id, self.call)
+        await memory.compact(self.owner, self.session_id, self.call, self.fence_transaction)
         context = await memory.context(self.owner, self.session_id)
         intent = await self.route(objective, context)
         await self.activity(
@@ -258,7 +258,7 @@ class Runtime:
             await db.commit()
         await self.publish("chat.message", {"text": answer, "clientId": self.run_id + ":answer"})
         with suppress(Exception):
-            await memory.consolidate(self.owner, self.session_id, self.call)
+            await memory.consolidate(self.owner, self.session_id, self.call, self.fence_transaction)
         return answer
 
     async def delegate(self, args):

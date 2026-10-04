@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from playwright.async_api import async_playwright
 from pydantic import BaseModel, Field
@@ -26,6 +28,21 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.middleware("http")
+async def safe_errors(request, call_next):
+    try:
+        return await call_next(request)
+    except Exception:
+        # Playwright exceptions can contain page URLs, query secrets or DOM text.
+        # Keep that content out of service logs and public responses.
+        return JSONResponse({"code": "browser_unavailable"}, status_code=502)
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(request, exc):
+    return JSONResponse({"code": "invalid_request"}, status_code=422)
 
 
 def auth(authorization: str = Header(default="")):

@@ -8,12 +8,12 @@ Checked 2026-10-04. This is an independent implementation, with real persistence
 |---|---|
 | Python lint/format | Ruff passes |
 | Python types | mypy passes on all 20 API modules |
-| Backend suite | 38 tests pass with SQLite and PostgreSQL 17 |
+| Backend suite | 42 tests pass with SQLite and PostgreSQL 17 |
 | Official SDK adapters | Mocked OpenAI/Anthropic/Z.AI clients exercise public text, tools, images, usage and private-field exclusion |
 | Voice authorization | Mocked official Live, Realtime client-secret and Realtime SDP-broker APIs; ownership, secret exclusion and trusted usage deduplication |
-| PostgreSQL persistence | All 38 tests pass against PostgreSQL 17; restart/fencing tests use actual PostgreSQL row locks |
+| PostgreSQL persistence | All 42 tests pass against PostgreSQL 17; restart/fencing tests use actual PostgreSQL row locks |
 | Arabic mocked E2E | Structured intent → OANDA HTTP normalization → rendered-image fixture → multimodal input → recommendation → persistent monitoring → outbox/push simulation |
-| Restart behavior | Expired leases, stale fencing, serialized conversation claims, occurrence/effect idempotency and original-history preservation tested |
+| Restart behavior | Expired leases, stale fencing, serialized conversation claims, occurrence/effect idempotency, fenced memory writes, concurrent fact creation and original-history preservation tested |
 | TypeScript | Type checks and ESLint pass |
 | Mobile components | 9 Jest tests cover Arabic/English direction, drawer, Welcome chart exclusion, chat events, optional recommendation fields, selection artifacts, settings and bridge rejection |
 | Chart bridge | 2 Vitest tests pass |
