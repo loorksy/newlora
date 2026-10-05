@@ -200,6 +200,7 @@ const ar: Record<keyof typeof en, string> = {
   chart_image_missing: 'صورة الرسم البياني المحفوظة غير متاحة.',
   checkpoint_too_large: 'هذا التشغيل أكبر من أن يُستأنف بأمان.',
   image_reference_forbidden: 'الصورة المرفقة غير متاحة.',
+  multimodal_payload_too_large: 'هذه الصور أكبر من أن تُرسل معاً.',
   browser_unavailable: 'المتصفح غير متاح مؤقتاً.',
   search_unavailable: 'البحث غير متاح مؤقتاً.',
   agent_temporarily_unavailable: 'الوكيل غير متاح مؤقتاً.',

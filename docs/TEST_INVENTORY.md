@@ -1,6 +1,6 @@
 # Hardening test inventory
 
-Baseline: `bf795979aca67df1cf83b7c96d8c2990b5266808`. Current suites: **112 backend + 30 mobile + 15 chart = 157 unique cases**, versus 42 + 9 + 2 at baseline. Backend executes on both SQLite and PostgreSQL; those are two executions of the same 112 cases. Fixtures mock official provider SDKs and never use paid provider credentials.
+Baseline: `bf795979aca67df1cf83b7c96d8c2990b5266808`. Current suites: **117 backend + 30 mobile + 15 chart = 162 unique cases**, versus 42 + 9 + 2 at baseline. Backend executes on both SQLite and PostgreSQL; those are two executions of the same 117 cases. Fixtures mock official provider SDKs and never use paid provider credentials.
 
 ## Added backend tests
 
@@ -22,6 +22,11 @@ Names below include parameterized cases in the full collection further down. Exi
 - `test_hydration_preserves_ownership`
 - `test_transient_screenshot_is_not_stored_or_rehydrated`
 - `test_oversized_checkpoint_fails_without_writing`
+- `test_normal_image_hydration_succeeds`
+- `test_too_many_hydrated_images_fail_before_provider`
+- `test_hydrated_image_byte_limit_fails_before_provider`
+- `test_hydrated_payload_limit_fails_before_provider`
+- `test_mixed_chart_and_attachment_images_hydrate_without_paths`
 
 ### tests/backend/test_attachments.py
 
@@ -183,6 +188,11 @@ tests/backend/test_checkpoint_images.py::test_uploaded_image_checkpoint_rehydrat
 tests/backend/test_checkpoint_images.py::test_hydration_preserves_ownership
 tests/backend/test_checkpoint_images.py::test_transient_screenshot_is_not_stored_or_rehydrated
 tests/backend/test_checkpoint_images.py::test_oversized_checkpoint_fails_without_writing
+tests/backend/test_checkpoint_images.py::test_normal_image_hydration_succeeds
+tests/backend/test_checkpoint_images.py::test_too_many_hydrated_images_fail_before_provider
+tests/backend/test_checkpoint_images.py::test_hydrated_image_byte_limit_fails_before_provider
+tests/backend/test_checkpoint_images.py::test_hydrated_payload_limit_fails_before_provider
+tests/backend/test_checkpoint_images.py::test_mixed_chart_and_attachment_images_hydrate_without_paths
 tests/backend/test_e2e.py::test_arabic_analysis_recommendation_task_push[arabic]
 tests/backend/test_e2e.py::test_arabic_analysis_recommendation_task_push[worker-restart]
 tests/backend/test_journal.py::test_planned_operation_survives_crash_and_replan_wording
@@ -270,5 +280,5 @@ tests/backend/test_voice.py::test_live_rejects_missing_provider_session_identity
 tests/backend/test_voice.py::test_voice_cancellation_is_owned_idempotent_and_blocks_research
 tests/backend/test_voice.py::test_missing_response_id_and_stale_voice_fence_cannot_record_usage
 
-112 tests collected
+117 tests collected
 ```

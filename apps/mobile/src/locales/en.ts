@@ -200,6 +200,7 @@ export default {
   chart_image_missing: 'The saved chart image is unavailable.',
   checkpoint_too_large: 'This run is too large to resume safely.',
   image_reference_forbidden: 'The attached image is not available.',
+  multimodal_payload_too_large: 'These images are too large to send together.',
   browser_unavailable: 'The browser is temporarily unavailable.',
   search_unavailable: 'Search is temporarily unavailable.',
   agent_temporarily_unavailable: 'The agent is temporarily unavailable.',

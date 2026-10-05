@@ -2,6 +2,7 @@
 
 import base64
 import json
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
@@ -18,6 +19,15 @@ MAX_MESSAGES = 500
 MAX_IMAGES_PER_MESSAGE = 8
 MAX_DEPTH = 12
 IMAGE_BYTE_LIMIT = 15_000_000
+# Provider-call bounds. These stop one resumed context from expanding every stored
+# reference into memory. They are infrastructure limits, not trading rules.
+MAX_PROVIDER_IMAGES = 12
+MAX_PROVIDER_IMAGE_BYTES = 32 * 1024 * 1024
+MAX_PROVIDER_PAYLOAD_BYTES = 48 * 1024 * 1024
+TRANSIENT_SCREENSHOT_UNAVAILABLE = (
+    "The transient screenshot from a previous worker is unavailable after restart. "
+    "Reacquire it before making visual claims."
+)
 
 
 def checkpoint_payload(messages: list[dict], step: int, answer: str | None) -> dict:
@@ -108,40 +118,99 @@ def _reject_unbounded(value: Any, depth: int = 0) -> None:
 
 
 async def hydrate_messages(owner: str, session_id: str, messages: list[dict]) -> list[dict]:
-    """Copy messages and expand owned image references for one provider call."""
-    output = []
+    """Copy messages and expand owned image references for one provider call.
+
+    The returned list is complete or the call fails. A limit never drops some images
+    and sends the rest. Transient screenshots are not provider images: when a message
+    contains only those markers, its text no longer tells the model to inspect them.
+    """
+    prepared: list[tuple[dict, list[Callable[[], str]]]] = []
+    image_count = 0
+    raw_total = 0
+    payload_total = 0
     for message in messages:
         item = dict(message)
         images = message.get("images")
+        loaders: list[Callable[[], str]] = []
         if images:
-            hydrated = []
-            for image in images:
-                url = await _hydrate_image(owner, session_id, image)
-                if url:
-                    hydrated.append(url)
-            if hydrated:
-                item["images"] = hydrated
-            else:
+            if not isinstance(images, list):
+                raise PublicError("image_reference_forbidden", 403)
+            if all(_is_transient(image) for image in images):
                 item.pop("images", None)
+                item["content"] = TRANSIENT_SCREENSHOT_UNAVAILABLE
+            else:
+                for image in images:
+                    if _is_transient(image):
+                        continue
+                    raw, payload, loader = await _plan_image(owner, session_id, image)
+                    image_count += 1
+                    raw_total += raw
+                    payload_total += payload
+                    if (
+                        image_count > MAX_PROVIDER_IMAGES
+                        or raw_total > MAX_PROVIDER_IMAGE_BYTES
+                        or payload_total > MAX_PROVIDER_PAYLOAD_BYTES
+                    ):
+                        raise PublicError("multimodal_payload_too_large", 409)
+                    loaders.append(loader)
+                if not loaders:
+                    item.pop("images", None)
+        prepared.append((item, loaders))
+    output = []
+    for item, loaders in prepared:
+        if loaders:
+            item["images"] = [loader() for loader in loaders]
         output.append(item)
     return output
 
 
-async def _hydrate_image(owner: str, session_id: str, image: Any) -> str | None:
+def _is_transient(image: Any) -> bool:
+    return isinstance(image, dict) and image.get("type") == "transient_image"
+
+
+async def _plan_image(
+    owner: str, session_id: str, image: Any
+) -> tuple[int, int, Callable[[], str]]:
+    """Validate one image and measure it without reading file bytes."""
     if isinstance(image, str):
         if image.startswith("data:image/") and "\n" not in image and len(image) <= IMAGE_BYTE_LIMIT:
-            return image
+            raw, payload = _data_url_sizes(image)
+            return raw, payload, lambda: image
         raise PublicError("image_reference_forbidden", 403)
     if not isinstance(image, dict):
         raise PublicError("image_reference_forbidden", 403)
     kind = image.get("type")
-    if kind == "transient_image":
-        return None
     if kind == "attachment_image":
-        return await _attachment_url(owner, session_id, _safe_id(image.get("attachment_id")))
+        target, mime, size = await _attachment_file(
+            owner, session_id, _safe_id(image.get("attachment_id"))
+        )
+        return (
+            size,
+            _encoded_size(mime, size),
+            lambda: _encode_file(target, mime, "attachment_not_found"),
+        )
     if kind == "artifact_image":
-        return await _artifact_url(owner, session_id, _safe_id(image.get("artifact_id")))
+        target, size = await _artifact_file(owner, session_id, _safe_id(image.get("artifact_id")))
+        return (
+            size,
+            _encoded_size("image/png", size),
+            lambda: _encode_file(target, "image/png", "chart_image_missing"),
+        )
     raise PublicError("image_reference_forbidden", 403)
+
+
+def _data_url_sizes(url: str) -> tuple[int, int]:
+    marker = ";base64,"
+    index = url.find(marker)
+    if index == -1:
+        return len(url), len(url)
+    body = url[index + len(marker) :]
+    padding = len(body) - len(body.rstrip("="))
+    return max(0, (len(body) * 3) // 4 - padding), len(url)
+
+
+def _encoded_size(mime: str, raw_size: int) -> int:
+    return len("data:") + len(mime) + len(";base64,") + 4 * ((raw_size + 2) // 3)
 
 
 def _safe_id(value: Any) -> str:
@@ -151,7 +220,7 @@ def _safe_id(value: Any) -> str:
         raise PublicError("image_reference_forbidden", 403) from None
 
 
-async def _attachment_url(owner: str, session_id: str, attachment_id: str) -> str:
+async def _attachment_file(owner: str, session_id: str, attachment_id: str):
     async with sessions() as db:
         row = await db.get(Record, attachment_id)
         if (
@@ -164,11 +233,11 @@ async def _attachment_url(owner: str, session_id: str, attachment_id: str) -> st
         ):
             raise PublicError("image_reference_forbidden", 403)
         mime = str(row.data["mime"])
-    raw = _read_image(attachment_path(attachment_id), "attachment_not_found")
-    return "data:" + mime + ";base64," + base64.b64encode(raw).decode()
+    target = attachment_path(attachment_id)
+    return target, mime, _image_size(target, "attachment_not_found")
 
 
-async def _artifact_url(owner: str, session_id: str, artifact_id: str) -> str:
+async def _artifact_file(owner: str, session_id: str, artifact_id: str):
     from .agent_tools import artifact_path
 
     async with sessions() as db:
@@ -183,14 +252,24 @@ async def _artifact_url(owner: str, session_id: str, artifact_id: str) -> str:
             or payload.get("imageId") != artifact_id
         ):
             raise PublicError("image_reference_forbidden", 403)
-    raw = _read_image(artifact_path(artifact_id), "chart_image_missing")
-    return "data:image/png;base64," + base64.b64encode(raw).decode()
+    target = artifact_path(artifact_id)
+    return target, _image_size(target, "chart_image_missing")
 
 
-def _read_image(target, code: str) -> bytes:
+def _encode_file(target, mime: str, code: str) -> str:
+    raw = _read_image(target, code)
+    return "data:" + mime + ";base64," + base64.b64encode(raw).decode()
+
+
+def _image_size(target, code: str) -> int:
     if not target.is_file():
         raise PublicError(code, 404)
     size = target.stat().st_size
     if size <= 0 or size > IMAGE_BYTE_LIMIT:
         raise PublicError("checkpoint_too_large", 409)
+    return size
+
+
+def _read_image(target, code: str) -> bytes:
+    _image_size(target, code)
     return target.read_bytes()
