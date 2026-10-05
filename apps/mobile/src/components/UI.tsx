@@ -10,16 +10,10 @@ import {
   type ViewProps,
 } from 'react-native';
 import { useLocale } from '../i18n';
-export const colors = {
-  bg: '#101413',
-  surface: '#191f1c',
-  raised: '#222a25',
-  border: '#303a33',
-  text: '#f0f2ec',
-  muted: '#99a59b',
-  accent: '#a3c6ae',
-  danger: '#e6a49d',
-};
+import { colors, radius, space, type } from '../theme';
+
+export { colors };
+
 export function Label({ style, ...props }: TextProps) {
   const { rtl } = useLocale();
   return (
@@ -36,9 +30,11 @@ export function Label({ style, ...props }: TextProps) {
     />
   );
 }
+
 export function Card({ style, ...props }: ViewProps) {
   return <View {...props} style={[styles.card, style]} />;
 }
+
 export function Row({ style, ...props }: ViewProps) {
   const { rtl } = useLocale();
   return (
@@ -46,12 +42,13 @@ export function Row({ style, ...props }: ViewProps) {
       {...props}
       style={[
         styles.row,
-        { flexDirection: rtl ? 'row-reverse' : 'row' },
+        { flexDirection: 'row', direction: rtl ? 'rtl' : 'ltr' },
         style,
       ]}
     />
   );
 }
+
 export function Button({
   label,
   onPress,
@@ -69,35 +66,33 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled }}
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,
-        primary && {
-          backgroundColor: colors.accent,
-          borderColor: colors.accent,
-        },
-        compact && { paddingHorizontal: 14 },
-        (disabled || pressed) && { opacity: 0.55 },
+        primary && styles.primary,
+        compact && styles.compact,
+        (disabled || pressed) && styles.pressed,
       ]}
     >
       <Label
-        style={{
-          color: primary ? colors.bg : colors.text,
-          textAlign: 'center',
-          fontWeight: '600',
-        }}
+        style={[
+          styles.buttonLabel,
+          { color: primary ? colors.bg : colors.text, textAlign: 'center' },
+        ]}
       >
         {label}
       </Label>
     </Pressable>
   );
 }
+
 export function Input(props: TextInputProps) {
   const { rtl } = useLocale();
   return (
     <TextInput
-      placeholderTextColor={colors.muted}
+      placeholderTextColor={colors.secondary}
       {...props}
       style={[
         styles.input,
@@ -110,44 +105,47 @@ export function Input(props: TextInputProps) {
     />
   );
 }
+
 export const styles = StyleSheet.create({
-  text: { color: colors.text, fontSize: 16, lineHeight: 25 },
+  text: { color: colors.text, ...type.body },
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 22,
-    padding: 20,
-    gap: 12,
+    borderRadius: radius.lg,
+    padding: space.lg,
+    gap: space.md,
   },
-  row: { alignItems: 'center', gap: 10 },
+  row: { alignItems: 'center', gap: space.sm },
   button: {
-    minHeight: 48,
-    paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderRadius: 16,
+    minHeight: 44,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
+    backgroundColor: colors.elevated,
     justifyContent: 'center',
   },
+  primary: { backgroundColor: colors.accent, borderColor: colors.accent },
+  compact: { paddingHorizontal: space.md, minHeight: 44 },
+  pressed: { opacity: 0.55 },
+  buttonLabel: { ...type.button },
   input: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.elevated,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: radius.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
     color: colors.text,
-    fontSize: 16,
-    minHeight: 52,
+    fontSize: 15,
+    minHeight: 48,
   },
-  title: {
-    fontSize: 30,
-    lineHeight: 42,
-    fontWeight: '600',
-    letterSpacing: -0.7,
-  },
-  muted: { color: colors.muted, fontSize: 14, lineHeight: 22 },
-  page: { padding: 22, gap: 18, paddingBottom: 40 },
-  badge: { fontSize: 12, color: colors.accent },
+  title: { color: colors.text, ...type.title },
+  section: { color: colors.text, ...type.section },
+  muted: { color: colors.secondary, ...type.meta, lineHeight: 18 },
+  page: { padding: space.xl, gap: space.lg, paddingBottom: 40 },
+  badge: { ...type.meta, color: colors.accent },
   divider: { height: 1, backgroundColor: colors.border },
 });

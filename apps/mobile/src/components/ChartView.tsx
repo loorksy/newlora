@@ -76,7 +76,7 @@ export function ChartView({ item }: { item: Resource<Artifact> }) {
         allowFileAccess={false}
         mixedContentMode="never"
         setSupportMultipleWindows={false}
-        style={{ flex: 1, backgroundColor: '#101413' }}
+        style={{ flex: 1, backgroundColor: '#090B0F' }}
       />
     </View>
   );

@@ -46,14 +46,21 @@ class Attachments(context: ReactApplicationContext) : ReactContextBaseJavaModule
     }
     @ReactMethod
     fun pick(promise: Promise) {
+        open(arrayOf("image/png", "image/jpeg", "image/webp", "application/pdf", "text/plain", "text/csv"), promise)
+    }
+    @ReactMethod
+    fun pickImage(promise: Promise) {
+        open(arrayOf("image/png", "image/jpeg", "image/webp"), promise)
+    }
+    private fun open(mimes: Array<String>, promise: Promise) {
         if (pending != null) { promise.reject("attachment_busy", "attachment_busy"); return }
         try {
             val activity = reactApplicationContext.currentActivity ?: error("unavailable")
             pending = promise
             activity.startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
-                type = "*/*"
-                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/png", "image/jpeg", "image/webp", "application/pdf", "text/plain", "text/csv"))
+                type = mimes.first()
+                putExtra(Intent.EXTRA_MIME_TYPES, mimes)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }, 9143)
         } catch (_: Exception) { pending = null; promise.reject("attachment_invalid", "attachment_invalid") }

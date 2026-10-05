@@ -1,4 +1,29 @@
 require('@testing-library/react-native').configure({asyncUtilTimeout:5000});
+jest.mock('react-native-svg', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const Mock = props => React.createElement(View, props);
+  return {
+    __esModule: true,
+    default: Mock,
+    Svg: Mock,
+    Path: Mock,
+    Circle: Mock,
+    Ellipse: Mock,
+    G: Mock,
+    Line: Mock,
+    Rect: Mock,
+    Polyline: Mock,
+    Polygon: Mock,
+    Defs: Mock,
+    ClipPath: Mock,
+    LinearGradient: Mock,
+    RadialGradient: Mock,
+    Stop: Mock,
+    Text: Mock,
+    TSpan: Mock,
+  };
+});
 jest.mock('react-native-safe-area-context',()=>require('react-native-safe-area-context/jest/mock').default);
 jest.mock('react-native-keychain',()=>({getGenericPassword:jest.fn().mockResolvedValue(false),setGenericPassword:jest.fn(),resetGenericPassword:jest.fn(),ACCESSIBLE:{WHEN_UNLOCKED_THIS_DEVICE_ONLY:'device'}}));
 jest.mock('react-native-webview',()=>({WebView:require('react-native').View}));
