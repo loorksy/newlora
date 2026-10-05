@@ -34,6 +34,26 @@ Stale `iptables-legacy` rules on this host dropped forwarded traffic for every b
 
 No product source change was required for this deployment. PR #1 stays Draft. Live provider, device, DNS/TLS, and in-flight crash acceptance are still open.
 
+## Deployment completion
+
+The only commit after the deployed product commit `9fb8d0de7e0655741225c197525abcbb1d7e4e10` was the documentation ledger. Images were not rebuilt. Running API image `sha256:d1c2e1913dfead6cb7badacd726efdf48349ff727d83feba7712b09426911144`. Running browser image `sha256:bfcbc4b06388ff19a21beb8ac5053d149cfefb9993580da4fc9dab91ab92ba64`.
+
+| Item | Result |
+|---|---|
+| Restart policy `unless-stopped` on postgres, redis, api, worker, scheduler, notifier, voice, browser, egress, and search | PASS. Docker reports that policy on each running container |
+| Restart of those Newlora containers | PASS. `/health/ready` returned 200, Alembic stayed `0002`, and the artifact marker `newlora-acceptance` remained |
+| Reboot persistence | NOT TESTED. Reboot was not performed. PID 1 is `tini`, not systemd, so `newlora-firewall.service` is installed and enabled on disk but init did not start it. Current iptables rules remain until this kernel stops |
+| Newlora firewall script | PASS. `/opt/newlora/bin/newlora-firewall.sh apply` is idempotent and touches only `newlora_*` bridges. Exact rules and rollback are in `DEPLOYMENT.md` |
+| Login, empty settings, and rejected empty credential body | PASS. `GET /settings` has `credentials: {}`. `PUT` with an empty body returns 422 `invalid_request` |
+| Credential test with nothing stored | PASS as an empty state. `POST /settings/credentials/{openai,anthropic,zai,oanda}/test` returns `connectionStatus: failed` and no key |
+| Conversation and queued message without providers | PASS. The run ends `failed` with `model_not_configured` |
+| Browser and SSRF after restarts | PASS. `https://example.com` title `Example Domain`, PNG 75,694 bytes. Metadata and loopback HTTP browse return no text |
+| Public domain and TLS | NOT TESTED. No hostname was provided. API remains `127.0.0.1:18080` |
+| Fresh arm64 preview APK | PASS. `assemblePreview` and `apksigner verify` succeeded. Debug signing. ABI `arm64-v8a` only. SHA-256 `52dbc530e6b2353228344ff8194eb11f347a508f2a56434dbcd17f7457e2579f`. The bundle contains `multimodal_payload_too_large`. Path `/opt/newlora/releases/newlora-preview-arm64.apk`. Not committed |
+| OANDA, OpenAI, Anthropic, Z.AI, Firebase, physical Android, voice, and FCM | BLOCKED until those Newlora credentials and a device are added through the documented settings and FCM path |
+
+Provider keys are added later with `PUT /settings/credentials/{openai|anthropic|zai|oanda}` and are not environment variables. OANDA must include the practice account id and `"environment":"practice"`. Firebase uses `FCM_CREDENTIALS` only after a Newlora service-account file is mounted. No fake credentials were written.
+
 ## Automated checks
 
 | Check | Observed result |
