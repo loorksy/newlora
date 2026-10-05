@@ -1,6 +1,6 @@
 # Hardening test inventory
 
-Baseline: `bf795979aca67df1cf83b7c96d8c2990b5266808`. Current suites: **100 backend + 30 mobile + 15 chart = 145 unique cases**, versus 42 + 9 + 2 at baseline. Backend executes on both SQLite and PostgreSQL; those are two executions of the same 100 cases. Fixtures mock official provider SDKs and never use paid provider credentials.
+Baseline: `bf795979aca67df1cf83b7c96d8c2990b5266808`. Current suites: **101 backend + 30 mobile + 15 chart = 146 unique cases**, versus 42 + 9 + 2 at baseline. Backend executes on both SQLite and PostgreSQL; those are two executions of the same 100 cases. Fixtures mock official provider SDKs and never use paid provider credentials.
 
 ## Added backend tests
 
@@ -40,6 +40,8 @@ Names below include parameterized cases in the full collection further down. Exi
 - `test_future_tier_context_and_missing_cache_rates_stay_unknown`
 
 ### tests/backend/test_provider_hardening.py
+
+- `test_catalog_verification_script_needs_no_server_secrets`
 
 - `test_catalog_rejects_unverified_malformed_and_stale`
 - `test_zai_probe_uses_manifest_fallback_and_distinct_failures`
@@ -192,6 +194,7 @@ tests/backend/test_provider_hardening.py::test_zai_probe_uses_manifest_fallback_
 tests/backend/test_provider_hardening.py::test_zai_probe_uses_manifest_fallback_and_distinct_failures[codes1-invalid_credential]
 tests/backend/test_provider_hardening.py::test_zai_probe_uses_manifest_fallback_and_distinct_failures[codes2-provider_unavailable]
 tests/backend/test_provider_hardening.py::test_zai_probe_uses_manifest_fallback_and_distinct_failures[codes3-model_unavailable]
+tests/backend/test_provider_hardening.py::test_catalog_verification_script_needs_no_server_secrets
 tests/backend/test_providers.py::test_openai_official_client_filters_reasoning_and_normalizes_tools
 tests/backend/test_providers.py::test_anthropic_official_client
 tests/backend/test_providers.py::test_zai_official_client_drops_reasoning
@@ -239,5 +242,5 @@ tests/backend/test_voice.py::test_live_rejects_missing_provider_session_identity
 tests/backend/test_voice.py::test_voice_cancellation_is_owned_idempotent_and_blocks_research
 tests/backend/test_voice.py::test_missing_response_id_and_stale_voice_fence_cannot_record_usage
 
-100 tests collected in 1.61s
+101 tests collected in 1.68s
 ```

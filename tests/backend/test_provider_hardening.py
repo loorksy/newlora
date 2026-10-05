@@ -64,3 +64,21 @@ async def test_zai_probe_uses_manifest_fallback_and_distinct_failures(monkeypatc
     assert len({c.args[0] for c in adapter.complete.call_args_list}) == len(codes)
     async with sessions() as db:
         assert len((await db.scalars(select(Usage))).all()) == len(codes)
+
+
+def test_catalog_verification_script_needs_no_server_secrets():
+    import os
+    import subprocess
+    import sys
+
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k
+        not in {"MASTER_KEY", "JWT_SECRET", "OWNER_PASSWORD_HASH", "BROWSER_TOKEN", "DATABASE_URL"}
+    }
+    result = subprocess.run(
+        [sys.executable, "scripts/verify_models.py"], env=env, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Validated" in result.stdout

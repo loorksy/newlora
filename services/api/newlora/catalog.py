@@ -1,5 +1,6 @@
 import json
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -25,9 +26,9 @@ class VerifiedModel(BaseModel):
     source: str
 
 
-def manifest() -> dict:
+def manifest(path: Path | None = None) -> dict:
     try:
-        value = json.loads(settings().catalog_manifest.read_text())
+        value = json.loads((path if path is not None else settings().catalog_manifest).read_text())
         verified = date.fromisoformat(value["verified_at"])
         if not 0 <= (now().date() - verified).days <= 120:
             raise ValueError("stale_manifest")

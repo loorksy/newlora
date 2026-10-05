@@ -8,14 +8,14 @@ Hardening checked 2026-10-05 against the independent Newlora alpha. PR #1 must r
 |---|---|
 | Ruff lint / format | Pass |
 | mypy | Pass, 29 API modules |
-| Backend on SQLite | 100 tests pass |
-| Backend on PostgreSQL 17 | The same 100 tests pass using actual PostgreSQL transactions/indexes/locks |
+| Backend on SQLite | 101 tests pass |
+| Backend on PostgreSQL 17 | The same 101 tests pass using actual PostgreSQL transactions/indexes/locks |
 | ESLint / TypeScript | Pass across mobile, contracts and chart |
 | Mobile Jest | 30 tests pass |
 | Chart Vitest | 15 tests pass |
 | Chart production bundle | Vite/TypeScript build passes |
 
-There are **145 unique passing cases**, 92 more than the baseline's 53. PostgreSQL and SQLite execution do not count as separate unique tests. [Exact test inventory](TEST_INVENTORY.md) lists names and the complete backend collection. Tests retain existing provider/runtime/security coverage and add retrieval, journal recovery, attachments, recurrence/DST, precision, catalog/probes/pricing, notifications, voice and mobile behavior.
+There are **146 unique passing cases**, 93 more than the baseline's 53. PostgreSQL and SQLite execution do not count as separate unique tests. [Exact test inventory](TEST_INVENTORY.md) lists names and the complete backend collection. Tests retain existing provider/runtime/security coverage and add retrieval, journal recovery, attachments, recurrence/DST, precision, catalog/probes/pricing, notifications, voice and mobile behavior.
 
 ### Mocked provider tests
 
@@ -23,18 +23,18 @@ OpenAI, Anthropic and Z.AI tests mock their official SDK clients. The Arabic E2E
 
 ## Local infrastructure and builds
 
-- Both production Dockerfiles built successfully during this pass. The API image contains the new dependency lock and schema migration; the browser image contains instrument metadata support. Small subsequent runtime safeguards and the metadata declaration for the GIN index were verified through source tests and migration comparison; see final build notes below for exact artifact scope.
+- Both production Dockerfiles were rebuilt successfully from hardening commit `0cce172`: API `sha256:d141ac524a12c9c646fd3931101e909480d95fec0220c1f7dfe89f17e54c476d`, browser `sha256:3b79918fd4f82a67ec0c1b3ce2e424341a2a6aecde7d1dba2dfd577bae90c413`. These contain the mutation/task/voice safeguards and schema/index changes. The later optional manifest-path argument for the offline verifier was checked by the full host suites; images were not rebuilt for that small maintenance-only follow-up.
 - Compose configuration validates. Fresh PostgreSQL/Redis volumes and Alembic migration to `0002_hardening` passed. The metadata consistency check reports `No new upgrade operations detected` with the final GIN index declaration.
 - Real container API smoke passed authentication, Arabic conversation persistence, authenticated CSV upload and attachment/message linkage. Secret validation errors did not echo submitted values.
 - Worker, scheduler, notifier and voice processes started and emitted Redis health heartbeats. They were tested as separate processes inside the API container after the full stack hit the workspace limit; this is not a successful full-topology startup claim.
 - A real process terminated with `os._exit(27)` immediately after task commit and before the tool-result checkpoint. A separate replacement process acquired the expired run, resumed, and found exactly one recommendation and one recurring task. Two separate scheduler processes produced exactly one occurrence. Providers in this smoke were mocked; storage was real PostgreSQL.
 - Local Chromium rendered the production chart bundle with Arabic labels and drawings. The browser Docker container separately returned a real high-resolution annotated PNG, with precision metadata, non-root Chromium sandbox, read-only root filesystem, dropped capabilities and no-new-privileges. Unauthenticated render returned 401; malformed input returned a public code without submitted data.
-- SSRF/private-address/proxy behavior is covered by automated tests. A successful live public-page fetch through the production proxy is still an acceptance item. Do not mistake a stopped proxy or connection failure for proof of SSRF protection.
+- The final browser image also rendered actual annotated Arabic pixels. Its running egress proxy rejected loopback, private and metadata IPs with 403, and malformed browser input did not echo submitted data. Public `https://example.com` browsing returned a safe 502; a direct HTTP client through the same proxy received `ProxyError 403 Forbidden`, although public DNS validation passed. Successful public browsing remains unresolved in this environment and must be repeated on the target VPS. No network/isolation/TLS safeguard was disabled.
 - Full concurrent Compose startup was attempted and failed with `no space left on device` in this **32 GB workspace using Docker's vfs driver**. Temporary containers were removed and browser validation ran sequentially. No production isolation setting was weakened to fit this environment. Full-stack startup/restart must be repeated on the target VPS with adequate storage.
 
 ### Android artifact
 
-Native Android attachment selection and the complete JavaScript bundle build with JDK 17, Android SDK 36, React Native 0.81.5 and `:app:assemblePreview -PreactNativeArchitectures=arm64-v8a`. The preview uses a development signing identity; it is not a production-signed release. Output is `apps/mobile/android/app/build/outputs/apk/preview/app-preview.apk`; generated binaries remain outside Git. Final build/hash recorded below after validation.
+Native Android attachment selection and the complete JavaScript bundle build with JDK 17, Android SDK 36, React Native 0.81.5 and `:app:assemblePreview -PreactNativeArchitectures=arm64-v8a`. The preview uses a development signing identity; it is not a production-signed release. Output is `apps/mobile/android/app/build/outputs/apk/preview/app-preview.apk`; generated binaries remain outside Git. Final build succeeded in 8m 7s; APK signature verification passed. SHA-256: `f523d6df361d415709067468672f1129dc6155a5f39b8cd35bde52ac2b5f1367`. The Metro source map was compared with the final call-screen source to confirm inclusion of the reconnect cleanup fix.
 
 ## Live acceptance checklist — not yet executed
 
@@ -90,6 +90,6 @@ Record device/VPS versions, provider/model IDs, timestamps, screenshots and resu
 
 ## GitHub validation
 
-Local results above are independent of GitHub Actions. Earlier remote runs were blocked before execution with: **“The job was not started because your account is locked due to a billing issue.”** Baseline reruns include https://github.com/loorksy/newlora/actions/runs/37224713851 . Refresh the exact head-run status after pushing; do not mark CI passing unless jobs execute successfully.
+Local results above are independent of GitHub Actions. Earlier remote runs were blocked before execution with: **“The job was not started because your account is locked due to a billing issue.”** Baseline reruns include https://github.com/loorksy/newlora/actions/runs/37224713851 . The pushed hardening commit `0cce17216a91d784699946f5255ea1ac61b863a5` triggered [CI run 37293553792](https://github.com/loorksy/newlora/actions/runs/37293553792) and [Android run 37293549934](https://github.com/loorksy/newlora/actions/runs/37293549934). Every job was rejected before execution with the same billing annotation. Remote CI is not passing.
 
 Earlier release uploads returned HTTP 400 `Bad Content-Length`; the empty draft release was deleted. No fake GitHub Release is created and no binary is committed. Keep PR #1 Draft until the live checklist passes.

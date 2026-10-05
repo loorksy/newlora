@@ -6,6 +6,7 @@ No discovery guesses or automatic promotion; editors must review official capabi
 
 import argparse
 import asyncio
+from pathlib import Path
 
 import httpx
 from newlora.catalog import manifest
@@ -14,8 +15,9 @@ from newlora.catalog import manifest
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check-sources", action="store_true")
+    parser.add_argument("--manifest", type=Path, default=Path("packages/shared/models.json"))
     args = parser.parse_args()
-    data = manifest()
+    data = manifest(args.manifest)
     if args.check_sources:
         async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
             for url in sorted({m["source"] for m in data["models"]}):

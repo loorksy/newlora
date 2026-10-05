@@ -25,3 +25,5 @@ Z.AI's official introduction, model overview and API-code pages were fetched suc
 ## Pricing
 
 `pricing.py` validates versioned effective-date records with provider, model, modality, currency, input/output/cache-read/cache-write rates, optional audio-per-second rate, tier/context bounds and official provenance. Text rates are USD per million normalized tokens. No uncertain rates are populated in `packages/shared/pricing.json`. Missing applicable rates or missing required usage fields produce null cost, never zero. A computed usage row stores both version ID and a complete immutable pricing snapshot; catalog changes never reprice history. Tests use clearly named synthetic model/rate fixtures only.
+
+The verifier is read-only and works without server credentials or a database. Use `--manifest /path/to/models.json` to validate a candidate before deployment; production catalog loading continues to use the configured server manifest.
