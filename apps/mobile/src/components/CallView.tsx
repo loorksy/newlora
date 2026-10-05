@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { request } from '../services/api';
 import { VoiceSession } from '../services/voice';
 import { useLocale } from '../i18n';
-import { colors } from '../theme';
+import { useColors } from '../theme';
 import { Icon } from './Icon';
 import { Button, Label, Row, styles } from './UI';
 export function CallView({
@@ -18,6 +18,7 @@ export function CallView({
   onClose: () => void;
 }) {
   const { t } = useLocale();
+  const colors = useColors();
   const session = useRef(new VoiceSession());
   const mounted = useRef(true);
   const [status, setStatus] = useState(incoming ? 'incoming' : 'calling');
@@ -85,7 +86,7 @@ export function CallView({
           justifyContent: 'center',
         }}
       >
-        <Icon name="voice" size={36} color={colors.accent} />
+        <Icon name="voice" size={36} color={colors.text} />
       </View>
       <Label style={[styles.title, { textAlign: 'center' }]}>{t(status)}</Label>
       <Label style={[styles.muted, { textAlign: 'center' }]}>

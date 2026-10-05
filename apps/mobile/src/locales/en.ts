@@ -234,6 +234,7 @@ export default {
   comparePrompt: 'Compare the current market with the previous analysis.',
   tasksServerNote: 'Tasks continue on the server when the app is closed.',
   appearance: 'Appearance',
+  light: 'Light',
   dark: 'Dark',
   about: 'About',
   aboutBody:

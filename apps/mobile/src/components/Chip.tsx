@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { useLocale } from '../i18n';
-import { colors, radius, space } from '../theme';
+import { radius, useColors } from '../theme';
 
 export function Chip({
   label,
@@ -13,23 +13,28 @@ export function Chip({
   onPress: () => void;
 }) {
   const { rtl } = useLocale();
+  const colors = useColors();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected }}
       onPress={onPress}
+      hitSlop={4}
       style={({ pressed }) => [
         styles.chip,
-        selected && styles.selected,
+        {
+          borderColor: colors.border,
+          backgroundColor: selected ? colors.primary : colors.surface,
+        },
         pressed && styles.pressed,
       ]}
     >
       <Text
         style={[
           styles.label,
-          selected && styles.selectedLabel,
           {
+            color: selected ? colors.primaryForeground : colors.text,
             writingDirection: rtl ? 'rtl' : 'ltr',
             textAlign: rtl ? 'right' : 'left',
           },
@@ -43,18 +48,14 @@ export function Chip({
 
 const styles = StyleSheet.create({
   chip: {
-    minHeight: 44,
-    paddingHorizontal: space.md,
-    borderRadius: radius.sm,
+    minHeight: 32,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.elevated,
     alignItems: 'center',
     justifyContent: 'center',
     maxWidth: '100%',
   },
-  selected: { backgroundColor: colors.accent, borderColor: colors.accent },
-  selectedLabel: { color: colors.bg },
-  pressed: { opacity: 0.6 },
-  label: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  pressed: { opacity: 0.72 },
+  label: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
 });

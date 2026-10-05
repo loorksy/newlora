@@ -4,7 +4,7 @@ Newlora is independently implemented. It is not a nanobot fork and does not depe
 
 | Project | Inspected revision/version | License | Usage |
 |---|---|---|---|
-| HKUDS/nanobot | 96ad7b4dbf617b11e0991e92c7d295dbd828a956 | MIT, copyright 2025-present Xubin Ren and contributors | Architectural concepts only; no source copied |
+| HKUDS/nanobot | 63bdd402803a3b055d7a249fd059c4cfb0e7ca98 (WebUI visual system). Earlier architectural review: 96ad7b4dbf617b11e0991e92c7d295dbd828a956 | MIT, copyright 2025-present Xubin Ren and the nanobot contributors | Mobile visual system adapted from `webui/` at the pinned commit. Newlora does not vendor Nanobot source, backend, tools, or product logic. Full MIT text: `docs/licenses/nanobot-MIT.txt` |
 | klinecharts/pro | 4234b79f0bcfc26734d0a721c38cbd6d23aa38f5; npm 0.1.1 | Apache-2.0 | Chart dependency; original Arabic locale and datafeed |
 | klinecharts | npm 9.8.12 | Apache-2.0 | Pro peer dependency and deterministic overlay APIs |
 | lobehub/lobe-icons | 82e641b4fece9d1028a127149af9ded00df5ac0c; icons-rn 2.14.0 | MIT, copyright 2023 LobeHub | Official provider icon components |
@@ -14,6 +14,8 @@ Newlora is independently implemented. It is not a nanobot fork and does not depe
 | pypdf | 6.19.0 | BSD-3-Clause | Bounded PDF text extraction in a resource-limited subprocess |
 | python-dateutil | 2.9.0.post0 | Dual Apache-2.0 / BSD-3-Clause | iCalendar recurrence expansion |
 | Z.AI Python | zai-sdk 0.2.3 | MIT | Official provider SDK, import `zai` |
+
+The Newlora Android interface adapts the visual system of the Nanobot WebUI (`webui/`, including `globals.css`, the sidebar, thread header, composer, message timeline, settings surfaces, and automations presentation) from https://github.com/HKUDS/nanobot at commit `63bdd402803a3b055d7a249fd059c4cfb0e7ca98`. That work is MIT licensed, copyright 2025-present Xubin Ren and the nanobot contributors. The notice in `docs/licenses/nanobot-MIT.txt` applies to those adapted visual patterns. Newlora remains a separate product: it does not include Nanobot's gateway, shell, coding tools, Apps, Skills, or MCP product surfaces, and it is not named Nanobot.
 
 The complete verified upstream nanobot, KLineChart Pro, and Lobe Icons license texts are retained in `docs/licenses/`. Dependency distributions retain their own licenses. `uv.lock`, `requirements.lock`, and `package-lock.json` enumerate resolved dependencies. Vendor trademarks belong to their respective owners. No affiliation is implied.
 

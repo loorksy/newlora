@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, StyleSheet, View } from 'react-native';
 import { useLocale } from '../i18n';
-import { colors, space } from '../theme';
+import { space, useColors } from '../theme';
 import { Button, Card, Label, styles } from './UI';
 import { Icon } from './Icon';
 
@@ -15,6 +15,7 @@ export function UpdateSheet({
   onUpdate: () => void;
 }) {
   const { t } = useLocale();
+  const colors = useColors();
   return (
     <Modal
       visible={visible}
@@ -24,7 +25,7 @@ export function UpdateSheet({
     >
       <View style={layout.backdrop}>
         <Card>
-          <Icon name="refresh" color={colors.accent} size={28} />
+          <Icon name="refresh" color={colors.text} size={28} />
           <Label accessibilityRole="header" style={styles.section}>
             {t('otaUpdatedTitle')}
           </Label>

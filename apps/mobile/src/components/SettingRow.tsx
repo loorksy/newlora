@@ -2,9 +2,9 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useLocale } from '../i18n';
 import { forwardIcon, type IconName } from '../icons/map';
-import { colors, radius, space } from '../theme';
+import { radius, useColors } from '../theme';
 import { Icon } from './Icon';
-import { Label, styles as ui } from './UI';
+import { Label } from './UI';
 
 export function SettingRow({
   icon,
@@ -18,22 +18,34 @@ export function SettingRow({
   onPress?: () => void;
 }) {
   const { rtl } = useLocale();
+  const colors = useColors();
   const body = (
     <>
-      <Icon name={icon} color={colors.accent} />
+      <Icon name={icon} size={18} color={colors.secondary} />
       <View style={{ flex: 1 }}>
         <Label>{label}</Label>
-        {!!value && <Label style={ui.muted}>{value}</Label>}
+        {!!value && (
+          <Label style={{ fontSize: 12, lineHeight: 16, color: colors.secondary }}>
+            {value}
+          </Label>
+        )}
       </View>
-      {onPress && <Icon name={forwardIcon(rtl)} color={colors.secondary} />}
+      {onPress && (
+        <Icon name={forwardIcon(rtl)} size={16} color={colors.secondary} />
+      )}
     </>
   );
+  const rowStyle = [
+    styles.row,
+    {
+      direction: rtl ? ('rtl' as const) : ('ltr' as const),
+      borderColor: colors.border,
+      backgroundColor: colors.settingsSurface,
+    },
+  ];
   if (!onPress)
     return (
-      <View
-        accessibilityLabel={label}
-        style={[styles.row, { direction: rtl ? 'rtl' : 'ltr' }]}
-      >
+      <View accessibilityLabel={label} style={rowStyle}>
         {body}
       </View>
     );
@@ -42,7 +54,7 @@ export function SettingRow({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={[styles.row, { direction: rtl ? 'rtl' : 'ltr' }]}
+      style={rowStyle}
     >
       {body}
     </Pressable>
@@ -51,14 +63,12 @@ export function SettingRow({
 
 const styles = StyleSheet.create({
   row: {
-    minHeight: 56,
-    borderRadius: radius.md,
+    minHeight: 52,
+    borderRadius: radius.control,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: space.md,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.md,
+    gap: 12,
   },
 });

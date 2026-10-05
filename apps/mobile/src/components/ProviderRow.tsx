@@ -6,9 +6,9 @@ import Anthropic from '../vendor/lobe/Anthropic';
 import ZAI from '../vendor/lobe/ZAI';
 import { useLocale } from '../i18n';
 import { forwardIcon } from '../icons/map';
-import { colors, radius, space } from '../theme';
+import { radius, useColors } from '../theme';
 import { Icon } from './Icon';
-import { Label, styles as ui } from './UI';
+import { Label } from './UI';
 
 export const providerNames: Record<Provider, string> = {
   openai: 'OpenAI',
@@ -17,6 +17,7 @@ export const providerNames: Record<Provider, string> = {
 };
 
 export function ProviderMark({ provider }: { provider: Provider }) {
+  const colors = useColors();
   const color = colors.text;
   if (provider === 'openai') return <OpenAI size={22} color={color} />;
   if (provider === 'anthropic') return <Anthropic size={22} color={color} />;
@@ -33,34 +34,42 @@ export function ProviderRow({
   onPress: () => void;
 }) {
   const { rtl } = useLocale();
+  const colors = useColors();
   const name = providerNames[provider];
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={name}
       onPress={onPress}
-      style={[styles.row, { direction: rtl ? 'rtl' : 'ltr' }]}
+      style={[
+        styles.row,
+        {
+          direction: rtl ? 'rtl' : 'ltr',
+          borderColor: colors.border,
+          backgroundColor: colors.settingsSurface,
+        },
+      ]}
     >
       <ProviderMark provider={provider} />
       <View style={{ flex: 1 }}>
         <Label>{name}</Label>
-        <Label style={ui.muted}>{status}</Label>
+        <Label style={{ fontSize: 12, lineHeight: 16, color: colors.secondary }}>
+          {status}
+        </Label>
       </View>
-      <Icon name={forwardIcon(rtl)} color={colors.secondary} />
+      <Icon name={forwardIcon(rtl)} size={16} color={colors.secondary} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
-    minHeight: 64,
-    borderRadius: radius.md,
+    minHeight: 56,
+    borderRadius: radius.control,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.elevated,
-    paddingHorizontal: space.md,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.md,
+    gap: 12,
   },
 });

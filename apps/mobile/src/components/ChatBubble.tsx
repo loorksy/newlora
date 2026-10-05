@@ -2,11 +2,12 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useLocale, isolate } from '../i18n';
 import type { ChatMessage } from '../app/types';
-import { colors, radius, space } from '../theme';
+import { radius, useColors } from '../theme';
 import { Label, styles as ui } from './UI';
 
 export function ChatBubble({ message }: { message: ChatMessage }) {
   const { t, rtl } = useLocale();
+  const colors = useColors();
   const user = message.role === 'user';
   return (
     <View
@@ -14,19 +15,25 @@ export function ChatBubble({ message }: { message: ChatMessage }) {
       style={[
         user ? styles.user : styles.assistant,
         { alignSelf: user ? 'flex-end' : 'flex-start' },
+        user && { backgroundColor: colors.elevated },
       ]}
     >
-      {!user && <Label style={ui.badge}>{t('brand')}</Label>}
-      <Label selectable style={{ writingDirection: rtl ? 'rtl' : 'ltr' }}>
+      <Label
+        selectable
+        style={[
+          user ? styles.userText : styles.assistantText,
+          { writingDirection: rtl ? 'rtl' : 'ltr' },
+        ]}
+      >
         {message.text}
       </Label>
       {!!message.attachmentIds?.length && (
-        <Label style={ui.muted}>
+        <Label style={[ui.muted, { color: colors.secondary }]}>
           {t('attachedFiles')} · {message.attachmentIds.length}
         </Label>
       )}
       {!!message.timestamp && (
-        <Label style={[ui.muted, styles.time]}>
+        <Label style={[ui.muted, styles.time, { color: colors.secondary }]}>
           {isolate(new Date(message.timestamp).toLocaleString())}
         </Label>
       )}
@@ -36,18 +43,19 @@ export function ChatBubble({ message }: { message: ChatMessage }) {
 
 const styles = StyleSheet.create({
   user: {
-    maxWidth: '88%',
-    backgroundColor: colors.strong,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: space.lg,
-    gap: space.sm,
+    maxWidth: '85%',
+    borderRadius: radius.floating,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 4,
   },
   assistant: {
     maxWidth: '100%',
-    paddingVertical: space.sm,
-    gap: space.sm,
+    width: '100%',
+    paddingVertical: 4,
+    gap: 4,
   },
-  time: { writingDirection: 'ltr' },
+  userText: { fontSize: 16, lineHeight: 28 },
+  assistantText: { fontSize: 15, lineHeight: 24 },
+  time: { writingDirection: 'ltr', fontSize: 12, lineHeight: 16 },
 });

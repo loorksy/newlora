@@ -2,11 +2,12 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { Resource } from '@newlora/contracts';
 import { useLocale, isolate } from '../i18n';
-import { space } from '../theme';
+import { space, useColors } from '../theme';
 import { Chip } from '../components/Chip';
 import { EmptyState } from '../components/EmptyState';
+import { Icon } from '../components/Icon';
 import { SectionHeader } from '../components/SectionHeader';
-import { Card, Label, styles as ui } from '../components/UI';
+import { Label, styles as ui } from '../components/UI';
 
 const prompts = ['analyzeXau', 'usdNews', 'monitor', 'compare'] as const;
 
@@ -22,12 +23,15 @@ export function HomeScreen({
   onOpen: (id: string) => void;
 }) {
   const { t, lang } = useLocale();
+  const colors = useColors();
   return (
     <View style={styles.page}>
-      <Label accessibilityRole="header" style={ui.title}>
-        {t('greeting')}
-      </Label>
-      <Label style={[ui.muted, styles.support]}>{t('subtitle')}</Label>
+      <View style={styles.hero}>
+        <Icon name="brand" size={32} color={colors.text} />
+        <Label accessibilityRole="header" style={[ui.title, styles.greeting]}>
+          {t('greeting')}
+        </Label>
+      </View>
       {composer}
       <View style={styles.chips}>
         {prompts.map(key => (
@@ -40,21 +44,22 @@ export function HomeScreen({
       </View>
       <SectionHeader title={t('recent')} />
       {recent.length === 0 && <EmptyState title={t('emptyRecent')} icon="chats" />}
-      {recent.slice(0, 5).map(item => (
+      {recent.slice(0, 8).map(item => (
         <Pressable
           key={item.id}
           accessibilityRole="button"
           onPress={() => onOpen(item.id)}
+          style={[styles.row, { backgroundColor: colors.elevated }]}
         >
-          <Card>
-            <Label>{String(item.data.title || t('newChat'))}</Label>
-            {typeof item.data.activityStatus === 'string' && (
-              <Label style={ui.badge}>{t(item.data.activityStatus)}</Label>
-            )}
-            <Label style={[ui.muted, styles.ltr]}>
-              {isolate(new Date(item.updatedAt).toLocaleString(lang))}
+          <Label numberOfLines={1}>{String(item.data.title || t('newChat'))}</Label>
+          {typeof item.data.activityStatus === 'string' && (
+            <Label style={[ui.badge, { color: colors.secondary }]}>
+              {t(item.data.activityStatus)}
             </Label>
-          </Card>
+          )}
+          <Label style={[ui.muted, styles.ltr, { color: colors.secondary }]}>
+            {isolate(new Date(item.updatedAt).toLocaleString(lang))}
+          </Label>
         </Pressable>
       ))}
     </View>
@@ -63,7 +68,9 @@ export function HomeScreen({
 
 const styles = StyleSheet.create({
   page: { gap: space.lg },
-  support: { fontSize: 15, lineHeight: 22 },
+  hero: { alignItems: 'center', gap: 12, paddingTop: 28, paddingBottom: 8 },
+  greeting: { fontSize: 34, lineHeight: 37, fontWeight: '400', textAlign: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  row: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
   ltr: { writingDirection: 'ltr' },
 });

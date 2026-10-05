@@ -2,9 +2,10 @@ import React from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import type { Resource } from '@newlora/contracts';
 import { useLocale, isolate } from '../i18n';
-import { space } from '../theme';
+import { space, useColors } from '../theme';
 import { EmptyState } from '../components/EmptyState';
-import { Button, Card, Input, Label, Row, styles } from '../components/UI';
+import { IconButton } from '../components/IconButton';
+import { Button, Input, Label, Row, styles } from '../components/UI';
 
 export function HistoryScreen({
   items,
@@ -26,6 +27,7 @@ export function HistoryScreen({
   onCreate: () => void;
 }) {
   const { t, lang } = useLocale();
+  const colors = useColors();
   return (
     <View style={layout.page}>
       <Label accessibilityRole="header" style={styles.title}>
@@ -44,8 +46,12 @@ export function HistoryScreen({
       <Button primary label={t('newChat')} onPress={onCreate} />
       {items.length === 0 && <EmptyState title={t('emptyChats')} icon="chats" />}
       {items.map(item => (
-        <Card key={item.id}>
-          <Pressable accessibilityRole="button" onPress={() => onOpen(item.id)}>
+        <View key={item.id} style={[layout.row, { borderColor: colors.border }]}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onOpen(item.id)}
+            style={{ flex: 1, gap: 2 }}
+          >
             <Label>{String(item.data.title || t('newChat'))}</Label>
             {typeof item.data.activityStatus === 'string' && (
               <Label style={styles.badge}>{t(item.data.activityStatus)}</Label>
@@ -54,30 +60,37 @@ export function HistoryScreen({
               {isolate(new Date(item.updatedAt).toLocaleString(lang))}
             </Label>
           </Pressable>
-          <Row>
-            <Button
-              compact
-              label={t('rename')}
-              onPress={() =>
-                onRename({ id: item.id, title: String(item.data.title || '') })
-              }
-            />
-            <Button
-              compact
-              label={t('delete')}
-              onPress={() =>
-                Alert.alert(t('delete'), t('confirmDelete'), [
-                  { text: t('cancel'), style: 'cancel' },
-                  {
-                    text: t('confirm'),
-                    style: 'destructive',
-                    onPress: () => onDelete(item.id),
-                  },
-                ])
-              }
-            />
-          </Row>
-        </Card>
+          <IconButton
+            name="more"
+            label={t('rename')}
+            size={32}
+            iconSize={16}
+            color={colors.secondary}
+            onPress={() =>
+              Alert.alert(String(item.data.title || t('newChat')), undefined, [
+                {
+                  text: t('rename'),
+                  onPress: () =>
+                    onRename({ id: item.id, title: String(item.data.title || '') }),
+                },
+                {
+                  text: t('delete'),
+                  style: 'destructive',
+                  onPress: () =>
+                    Alert.alert(t('delete'), t('confirmDelete'), [
+                      { text: t('cancel'), style: 'cancel' },
+                      {
+                        text: t('confirm'),
+                        style: 'destructive',
+                        onPress: () => onDelete(item.id),
+                      },
+                    ]),
+                },
+                { text: t('cancel'), style: 'cancel' },
+              ])
+            }
+          />
+        </View>
       ))}
     </View>
   );
@@ -85,5 +98,13 @@ export function HistoryScreen({
 
 const layout = StyleSheet.create({
   page: { gap: space.lg },
+  row: {
+    minHeight: 52,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingVertical: 8,
+  },
   ltr: { writingDirection: 'ltr' },
 });

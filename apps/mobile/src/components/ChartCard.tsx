@@ -3,7 +3,7 @@ import { Image, StyleSheet, View } from 'react-native';
 import { useLocale, isolate } from '../i18n';
 import type { ArtifactResource } from '../app/types';
 import { authHeaders, baseURL } from '../services/api';
-import { colors, radius, space } from '../theme';
+import { radius, space, useColors } from '../theme';
 import { Icon } from './Icon';
 import { Button, Card, Label, Row, styles as ui } from './UI';
 
@@ -27,11 +27,12 @@ export function ChartCard({
   onShare: () => void;
 }) {
   const { t, rtl } = useLocale();
+  const colors = useColors();
   const caption = chartCaption(item.data.data);
   return (
     <Card>
       <Row>
-        <Icon name="candles" color={colors.accent} />
+        <Icon name="candles" size={18} color={colors.text} />
         <View style={{ flex: 1 }}>
           <Label style={styles.title}>{item.data.title}</Label>
           {caption !== '' && (
@@ -45,7 +46,10 @@ export function ChartCard({
           uri: baseURL() + '/artifacts/' + item.id + '/image',
           headers: authHeaders(),
         }}
-        style={[styles.image, { direction: rtl ? 'rtl' : 'ltr' }]}
+        style={[
+          styles.image,
+          { direction: rtl ? 'rtl' : 'ltr', backgroundColor: colors.elevated },
+        ]}
         resizeMode="contain"
       />
       <Row style={{ flexWrap: 'wrap' }}>
@@ -69,8 +73,11 @@ export function ChartFrame({
   children: React.ReactNode;
 }) {
   const { t, rtl } = useLocale();
+  const colors = useColors();
   return (
-    <View style={[styles.frame, { direction: rtl ? 'rtl' : 'ltr' }]}>
+    <View
+      style={[styles.frame, { direction: rtl ? 'rtl' : 'ltr', backgroundColor: colors.bg }]}
+    >
       <Row style={styles.frameBar}>
         <Button compact label={t('close')} onPress={onClose} />
         <View style={{ flex: 1 }}>
@@ -92,8 +99,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 180,
     borderRadius: radius.md,
-    backgroundColor: colors.bg,
   },
-  frame: { flex: 1, backgroundColor: colors.bg },
+  frame: { flex: 1 },
   frameBar: { padding: space.lg, gap: space.md },
 });

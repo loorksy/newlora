@@ -10,12 +10,16 @@ export function IconButton({
   onPress,
   disabled = false,
   color,
+  size = hit,
+  iconSize = 18,
 }: {
   name: IconName;
   label: string;
   onPress: () => void;
   disabled?: boolean;
   color?: string;
+  size?: number;
+  iconSize?: number;
 }) {
   return (
     <Pressable
@@ -24,23 +28,19 @@ export function IconButton({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      hitSlop={4}
+      hitSlop={size < hit ? Math.ceil((hit - size) / 2) : 4}
       style={({ pressed }) => [
         styles.hit,
+        { width: size, height: size, borderRadius: 12 },
         (disabled || pressed) && styles.pressed,
       ]}
     >
-      <Icon name={name} color={color} />
+      <Icon name={name} size={iconSize} color={color} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  hit: {
-    width: hit,
-    height: hit,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: { opacity: 0.5 },
+  hit: { alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.55 },
 });

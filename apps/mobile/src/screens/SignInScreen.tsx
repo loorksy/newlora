@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useLocale } from '../i18n';
-import { colors, space } from '../theme';
+import { space, useColors } from '../theme';
 import { Icon } from '../components/Icon';
 import { Button, Input, Label, Row, styles } from '../components/UI';
 
@@ -25,9 +25,10 @@ export function SignInScreen({
   onLanguage: (language: 'ar' | 'en') => void;
 }) {
   const { t, lang } = useLocale();
+  const colors = useColors();
   return (
     <View style={layout.page}>
-      <Icon name="brand" size={36} color={colors.accent} />
+      <Icon name="brand" size={32} color={colors.text} />
       <Label accessibilityRole="header" style={styles.title}>
         {t('signIn')}
       </Label>
@@ -49,7 +50,9 @@ export function SignInScreen({
         value={password}
         onChangeText={onPassword}
       />
-      {error !== '' && <Label style={layout.error}>{error}</Label>}
+      {error !== '' && (
+        <Label style={{ color: colors.danger, fontSize: 13 }}>{error}</Label>
+      )}
       <Button primary disabled={busy} label={t('signIn')} onPress={onSubmit} />
       <Row>
         <Button
@@ -70,5 +73,4 @@ export function SignInScreen({
 const layout = StyleSheet.create({
   page: { padding: space.xl, paddingTop: 72, gap: space.lg },
   ltr: { writingDirection: 'ltr', textAlign: 'left' },
-  error: { color: colors.danger },
 });

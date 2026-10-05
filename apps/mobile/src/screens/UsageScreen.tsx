@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useLocale, isolate } from '../i18n';
 import type { UsageSummary } from '../app/types';
-import { colors, radius, space } from '../theme';
+import { radius, space, useColors } from '../theme';
 import { Chip } from '../components/Chip';
 import { EmptyState } from '../components/EmptyState';
 import { Button, Card, Input, Label, Row, styles } from '../components/UI';
@@ -41,6 +41,7 @@ export function UsageScreen({
   onApply: () => void;
 }) {
   const { t, lang, rtl } = useLocale();
+  const colors = useColors();
   const known = [
     ['inputTokens', usage?.inputTokens],
     ['outputTokens', usage?.outputTokens],
@@ -139,7 +140,7 @@ export function UsageScreen({
                         style={{
                           width: `${Math.min(100, (value / max) * 100)}%`,
                           height: 4,
-                          backgroundColor: colors.accent,
+                          backgroundColor: colors.usage,
                           borderRadius: 2,
                           alignSelf: rtl ? 'flex-end' : 'flex-start',
                         }}
@@ -163,7 +164,7 @@ const layout = StyleSheet.create({
   embed: { writingDirection: 'ltr' },
   track: {
     height: 4,
-    backgroundColor: colors.strong,
+    backgroundColor: '#00000014',
     borderRadius: radius.sm,
   },
 });

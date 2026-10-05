@@ -12,7 +12,7 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { applyDirection, LocaleContext, useLocale, type Language } from './src/i18n';
 import { useAppController } from './src/app/useAppController';
-import { colors, space } from './src/theme';
+import { space, ThemeProvider, useColors, useTheme } from './src/theme';
 import { AppHeader } from './src/components/AppHeader';
 import { chartCaption, ChartFrame } from './src/components/ChartCard';
 import { ChartView } from './src/components/ChartView';
@@ -40,8 +40,16 @@ function Application({
   setLanguage: (language: Language) => void;
 }) {
   const { t, rtl } = useLocale();
+  const colors = useColors();
+  const { name: themeName } = useTheme();
   const app = useAppController(language, setLanguage);
   const chatting = app.screen === 'chats' && Boolean(app.session);
+  const conversationTitle = String(
+    app.conversations.find(item => item.id === app.session)?.data.title || '',
+  );
+  const headerTitle = chatting
+    ? conversationTitle || t('newChat')
+    : t(app.screen === 'home' ? 'newChat' : app.screen);
   const composer = (
     <Composer
       text={app.text}
@@ -53,6 +61,7 @@ function Application({
       onPickFile={app.pickFile}
       onPickImage={app.pickImageFile}
       onMic={app.startCall}
+      hero={!chatting}
       onSend={() => {
         void app.safe(() => app.send());
       }}
@@ -61,14 +70,19 @@ function Application({
   );
   if (app.restoring)
     return (
-      <SafeAreaView style={shell.loading}>
-        <ActivityIndicator color={colors.accent} />
+      <SafeAreaView style={[shell.loading, { backgroundColor: colors.bg }]}>
+        <ActivityIndicator color={colors.primary} />
       </SafeAreaView>
     );
   if (!app.signed)
     return (
-      <SafeAreaView style={[shell.root, { direction: rtl ? 'rtl' : 'ltr' }]}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
+      <SafeAreaView
+        style={[shell.root, { backgroundColor: colors.bg, direction: rtl ? 'rtl' : 'ltr' }]}
+      >
+        <StatusBar
+          barStyle={themeName === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.bg}
+        />
         <OtaCoordinator
           typing={false}
           uploading={false}
@@ -202,14 +216,20 @@ function Application({
       {app.screen === 'settings' && (
         <SettingsScreen onLanguage={setLanguage} onLogout={app.signOut} />
       )}
-      {app.busy && <ActivityIndicator color={colors.accent} />}
+      {app.busy && <ActivityIndicator color={colors.primary} />}
     </>
   );
   return (
-    <SafeAreaView style={[shell.root, { direction: rtl ? 'rtl' : 'ltr' }]}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
+    <SafeAreaView
+      style={[shell.root, { backgroundColor: colors.bg, direction: rtl ? 'rtl' : 'ltr' }]}
+    >
+      <StatusBar
+        barStyle={themeName === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.bg}
+      />
       <AppHeader
         onMenu={() => app.setDrawer(true)}
+        title={headerTitle}
         online={app.online}
         status={t(app.online ? 'connected' : 'offline')}
       />
@@ -222,7 +242,7 @@ function Application({
       )}
       {app.error !== '' && (
         <View style={shell.error}>
-          <Label style={shell.errorText}>{app.error}</Label>
+          <Label style={[shell.errorText, { color: colors.danger }]}>{app.error}</Label>
           <Button compact label={t('retry')} onPress={app.retry} />
         </View>
       )}
@@ -262,18 +282,34 @@ function Application({
       <Drawer
         visible={app.drawer}
         screen={app.session ? 'chats' : app.screen}
+        session={app.session}
+        conversations={app.conversations}
+        search={app.search}
         online={app.online}
         server={baseURL()}
         reduceMotion={app.reduceMotion}
         onClose={() => app.setDrawer(false)}
         onNavigate={app.navigate}
+        onNewChat={() => app.navigate('home')}
+        onSearch={app.setSearch}
+        onOpen={id => {
+          app.setDrawer(false);
+          void app.safe(() => app.openConversation(id));
+        }}
+        onRename={app.setRename}
+        onDelete={id => {
+          void app.safe(async () => {
+            await request('/conversations/' + id, 'DELETE');
+            await app.load();
+          });
+        }}
       />
       <Modal
         visible={Boolean(app.detail)}
         animationType={app.reduceMotion ? 'none' : 'slide'}
         onRequestClose={() => app.setDetail(null)}
       >
-        <SafeAreaView style={shell.root}>
+        <SafeAreaView style={[shell.root, { backgroundColor: colors.bg }]}>
           <View style={shell.modalBar}>
             <Button label={t('close')} onPress={() => app.setDetail(null)} />
           </View>
@@ -301,7 +337,7 @@ function Application({
         animationType={app.reduceMotion ? 'none' : 'slide'}
         onRequestClose={() => app.setChart(null)}
       >
-        <SafeAreaView style={shell.root}>
+        <SafeAreaView style={[shell.root, { backgroundColor: colors.bg }]}>
           {app.chart && (
             <ChartFrame
               title={app.chart.data.title}
@@ -375,18 +411,19 @@ export default function App() {
   }, [language]);
   return (
     <SafeAreaProvider>
-      <LocaleContext.Provider value={language}>
-        <Application language={language} setLanguage={setLanguage} />
-      </LocaleContext.Provider>
+      <ThemeProvider>
+        <LocaleContext.Provider value={language}>
+          <Application language={language} setLanguage={setLanguage} />
+        </LocaleContext.Provider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
 
 const shell = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1 },
   loading: {
     flex: 1,
-    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -400,7 +437,7 @@ const shell = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingVertical: space.sm,
   },
-  errorText: { color: colors.danger, flex: 1 },
+  errorText: { flex: 1 },
   modalBar: { padding: space.lg },
   rename: {
     flex: 1,
