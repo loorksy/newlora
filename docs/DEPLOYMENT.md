@@ -17,7 +17,13 @@ API/worker/scheduler/notifier/voice use one application image. PostgreSQL record
 
 OANDA Practice, OpenAI, Anthropic, and Z.AI are encrypted in PostgreSQL after login. They are not read from another project and they are not environment variables. `PUT /settings/credentials/{name}` accepts `openai`, `anthropic`, `zai`, and `oanda`, with body `{"key":"..."}`. OANDA also requires `account` and should send `"environment":"practice"`. `POST /settings/credentials/{name}/test` checks a stored credential. `GET /settings` returns only `configured`, `lastFour`, and `connectionStatus`.
 
-Firebase stays unset until a Newlora service-account file is mounted read-only at `/run/secrets/firebase-admin.json` in the notifier and `FCM_CREDENTIALS` points at that path. Do not invent a hostname. Leave the API on `127.0.0.1:18080` until `DOMAIN` and `PUBLIC_URL` are real, then start the Caddy service.
+Firebase stays unset until a Newlora service-account file is mounted read-only at `/run/secrets/firebase-admin.json` in the notifier and `FCM_CREDENTIALS` points at that path. Leave the API on `127.0.0.1:18080` until a real Newlora hostname exists. Do not publish that port.
+
+## Public HTTPS on the existing Traefik host
+
+The production host `srv1150752` already runs Traefik in host network mode for other sites. Newlora does not replace it and does not start the Compose Caddy service. The only Newlora site file is `/docker/traefik/dynamic/newlora.yml`. It routes `Host(\`newlora.lork.cloud\`)` on the `websecure` entrypoint to `http://127.0.0.1:18080` and uses the existing `letsencrypt` certificate resolver. `foxagent.yml`, `erp.yml`, and `wakeed.yml` stay untouched.
+
+Traefik's existing port-80 entrypoint redirects to HTTPS, so `http://newlora.lork.cloud` does not serve the API. The Android base URL is `https://newlora.lork.cloud`. Certificates renew through the existing ACME HTTP challenge and `/letsencrypt/acme.json`. PostgreSQL, Redis, browser, egress, and search stay unpublished.
 
 ## Host firewall exception for Newlora bridges
 

@@ -54,6 +54,25 @@ The only commit after the deployed product commit `9fb8d0de7e0655741225c197525ab
 
 Provider keys are added later with `PUT /settings/credentials/{openai|anthropic|zai|oanda}` and are not environment variables. OANDA must include the practice account id and `"environment":"practice"`. Firebase uses `FCM_CREDENTIALS` only after a Newlora service-account file is mounted. No fake credentials were written.
 
+## Public HTTPS on srv1150752
+
+`newlora.lork.cloud` already resolved to the public address of `srv1150752`. No DNS record was changed. Traefik on that host is in host network mode, so the new file `/docker/traefik/dynamic/newlora.yml` proxies only that hostname to `127.0.0.1:18080`. The API container publish address did not change. Existing dynamic files were not edited: `foxagent.yml` `1409ff3f491198cee664a63f9ba679870c67bbb4b1e600699d438faf0f234ad9`, `erp.yml` `e047b821b3b65949f8f68eb4513b76eb5a7092ae04c866766b2dbee468a28449`, `wakeed.yml` `832e92bb645ffc5e11301c17a3e518cb988e17b41531886ef942f01bd3fe4aa0`.
+
+| Item | Result |
+|---|---|
+| DNS | PASS. `newlora.lork.cloud` resolves to the public address of `srv1150752` at 1.1.1.1 and 8.8.8.8. The record was already present |
+| HTTPS `/health/ready` | PASS. HTTP 200 and every readiness flag true |
+| HTTP to HTTPS | PASS. Port 80 redirects to `https://newlora.lork.cloud/health/ready` and does not return the API body |
+| Certificate | PASS. Let's Encrypt intermediate `YR2`, SAN `DNS:newlora.lork.cloud`, valid 2026-10-05 through 2027-01-03, verify return code 0. Stored once in the existing ACME file. Other hostnames remain in that file |
+| HTTPS login | PASS. HTTP 200 with an access token. The owner password was not printed |
+| `wss://newlora.lork.cloud/events/ws` | PASS. Upgrade 101. A bad token closes with 4401. A real token stays open |
+| Android URL | PASS for the existing client rule. `https://newlora.lork.cloud` matches `https://`. The APK was not rebuilt and certificate checks were not disabled |
+| Public ports | PASS for Newlora. From outside, 18080, 5432, 6379, 8000, 8080, 8090, and 8091 are closed. 443 is the existing Traefik listener |
+| SSRF after the route change | PASS. `https://example.com` title `Example Domain`, text length 917. Loopback and `169.254.169.254` return empty text |
+| foxagent.lork.cloud / erp.lork.cloud / wakeed.lork.cloud | PASS. Same status codes as before the file was added: 307, 302, and 200. No logins |
+
+OANDA, OpenAI, Anthropic, Z.AI, Firebase, physical Android acceptance, real voice, and real FCM remain BLOCKED.
+
 ## Automated checks
 
 | Check | Observed result |
