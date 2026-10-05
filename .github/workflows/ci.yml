@@ -1,0 +1,48 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env: {POSTGRES_USER: newlora, POSTGRES_PASSWORD: test-only, POSTGRES_DB: newlora}
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U newlora" --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: {version: '0.12.19', python-version: '3.12'}
+      - run: uv sync --frozen
+      - run: uv run ruff check services tests scripts
+      - run: uv run ruff format --check services tests scripts
+      - run: uv run mypy
+      - run: uv run pytest -q
+      - run: uv run pytest -q
+        env: {TEST_DATABASE_URL: 'postgresql+asyncpg://newlora:test-only@localhost:5432/newlora'}
+  mobile-and-chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run chart:build
+      - uses: astral-sh/setup-uv@v6
+        with: {python-version: '3.12'}
+      - run: uv sync --frozen
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run python scripts/chart_smoke.py
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t newlora-api:local -f infra/docker/api.Dockerfile .
+      - run: docker build -t newlora-browser:local -f infra/docker/browser.Dockerfile .

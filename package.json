@@ -1,0 +1,22 @@
+{
+  "name": "newlora",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/mobile",
+    "packages/contracts",
+    "packages/chart"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint apps/mobile/App.tsx apps/mobile/src packages/contracts/src packages/chart/src",
+    "chart:build": "npm run build -w @newlora/chart"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "eslint": "^9.0.0",
+    "typescript-eslint": "^8.0.0",
+    "@eslint/js": "^9.0.0"
+  }
+}

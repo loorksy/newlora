@@ -1,0 +1,270 @@
+{
+  "version": 1,
+  "verified_at": "2026-10-04",
+  "models": [
+    {
+      "provider": "openai",
+      "id": "gpt-6.1-sol",
+      "rank": 0,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://developers.openai.com/api/docs/models/gpt-6.1-sol"
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-6-astra",
+      "rank": 1,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://developers.openai.com/api/docs/models/gpt-6-astra"
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-6-luna",
+      "rank": 2,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://developers.openai.com/api/docs/models/gpt-6-luna"
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-6-sol",
+      "rank": 3,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://developers.openai.com/api/docs/models/gpt-6-sol"
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-5.6-sol",
+      "rank": 4,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.6-sol"
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-5.6-terra",
+      "rank": 5,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.6-terra"
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-5.5",
+      "rank": 6,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.5"
+    },
+    {
+      "provider": "anthropic",
+      "id": "claude-sonnet-5-5",
+      "rank": 0,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/model.py"
+    },
+    {
+      "provider": "anthropic",
+      "id": "claude-opus-5-5",
+      "rank": 1,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/model.py"
+    },
+    {
+      "provider": "anthropic",
+      "id": "claude-fable-5-1",
+      "rank": 2,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/model.py"
+    },
+    {
+      "provider": "anthropic",
+      "id": "claude-mythos-5-1",
+      "rank": 3,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/model.py"
+    },
+    {
+      "provider": "anthropic",
+      "id": "claude-sonnet-5",
+      "rank": 4,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/model.py"
+    },
+    {
+      "provider": "anthropic",
+      "id": "claude-fable-5",
+      "rank": 5,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/model.py"
+    },
+    {
+      "provider": "anthropic",
+      "id": "claude-opus-5",
+      "rank": 6,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/model.py"
+    },
+    {
+      "provider": "zai",
+      "id": "glm-5.3-flash",
+      "rank": 0,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://docs.z.ai/guides/overview/overview"
+    },
+    {
+      "provider": "zai",
+      "id": "glm-5.3-flashx",
+      "rank": 1,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": true,
+      "voice": false,
+      "source": "https://docs.z.ai/guides/overview/overview"
+    },
+    {
+      "provider": "zai",
+      "id": "glm-5.3",
+      "rank": 2,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": false,
+      "voice": false,
+      "source": "https://docs.z.ai/guides/overview/overview"
+    },
+    {
+      "provider": "zai",
+      "id": "glm-5.2",
+      "rank": 3,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": false,
+      "voice": false,
+      "source": "https://docs.z.ai/guides/overview/overview"
+    },
+    {
+      "provider": "zai",
+      "id": "glm-5.1",
+      "rank": 4,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": false,
+      "voice": false,
+      "source": "https://docs.z.ai/guides/overview/overview"
+    },
+    {
+      "provider": "zai",
+      "id": "glm-5",
+      "rank": 5,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": false,
+      "voice": false,
+      "source": "https://docs.z.ai/guides/overview/overview"
+    },
+    {
+      "provider": "zai",
+      "id": "glm-4.7",
+      "rank": 6,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": false,
+      "voice": false,
+      "source": "https://docs.z.ai/guides/overview/overview"
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-live-1",
+      "rank": 0,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": false,
+      "voice": true,
+      "source": "https://developers.openai.com/api/docs/models/gpt-live-1"
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-realtime-2.1",
+      "rank": 1,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": false,
+      "voice": true,
+      "source": "https://developers.openai.com/api/docs/models/gpt-realtime-2.1"
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-realtime-2.1-mini",
+      "rank": 2,
+      "production": true,
+      "deprecated": false,
+      "tools": true,
+      "vision": false,
+      "voice": true,
+      "source": "https://developers.openai.com/api/docs/models/gpt-realtime-2.1-mini"
+    }
+  ]
+}
