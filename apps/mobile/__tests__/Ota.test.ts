@@ -4,7 +4,9 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { canonicalBytes } from '../src/ota/canonical';
-import { encodeUtf8, toBase64 } from '../src/ota/codec';
+import { decodeUtf8, encodeUtf8, fromBase64, toBase64 } from '../src/ota/codec';
+import { OTA_VERIFICATION, runningBundle } from '../src/ota/diagnostics';
+import { bridgeFs } from '../src/ota/native';
 
 declare const __dirname: string;
 import {
@@ -361,6 +363,63 @@ test('the updater does not eval source or accept a bundle from a websocket', () 
   expect(source.includes('eval(')).toBe(false);
   expect(source.includes('WebSocket')).toBe(false);
   expect(source.includes('new Function')).toBe(false);
+});
+
+test('hermes bytecode is stored without a utf-8 decode', async () => {
+  const hermes = Uint8Array.from([0xc6, 0x1f, 0xbc, 0x03, 0xc1, 0x03, 0x19, 0x1f, 0x00]);
+  expect(() => decodeUtf8(hermes)).toThrow();
+  const files = new Map<string, string>();
+  const fs = bridgeFs({
+    readText: async rel => files.get(rel) ?? null,
+    writeText: async (rel, text) => {
+      files.set(rel, text);
+      return true;
+    },
+    writeBytes: async (rel, encoded) => {
+      files.set(rel, encoded);
+      return true;
+    },
+    readBytes: async rel => files.get(rel) ?? null,
+    rename: async (from, to) => {
+      const moving = [...files.keys()].filter(key => key === from || key.startsWith(`${from}/`));
+      for (const key of moving) {
+        files.set(to + key.slice(from.length), files.get(key) || '');
+        files.delete(key);
+      }
+      return true;
+    },
+    removeTree: async rel => {
+      for (const key of [...files.keys()]) {
+        if (key === rel || key.startsWith(`${rel}/`)) files.delete(key);
+      }
+      return true;
+    },
+    reload: async () => true,
+  });
+  await fs.writeFileAtomic('partial/release001/bundle', hermes);
+  const stored = files.get('partial/release001/bundle');
+  expect(stored ? fromBase64(stored) : null).toEqual(hermes);
+});
+
+test('the running bundle source follows the native boot record', () => {
+  expect(runningBundle(emptyState())).toEqual({ source: 'embedded', updateId: '' });
+  expect(
+    runningBundle({
+      ...emptyState(),
+      launchSource: 'good',
+      launchedId: '20261005T180010Z-f05976f998c4',
+      pending: {
+        id: 'newer-release',
+        createdAt: '2026-10-05T18:00:00Z',
+        runtimeVersion: RUNTIME_VERSION,
+        gitSha: 'abc1234',
+        version: '1.2',
+        sha256: 'ab'.repeat(32),
+        notes: '',
+      },
+    }),
+  ).toEqual({ source: 'ota', updateId: '20261005T180010Z-f05976f998c4' });
+  expect(OTA_VERIFICATION).toBe('NANOBOT-UI-OTA-2');
 });
 
 test('a foreign host and a non-https manifest are rejected', async () => {

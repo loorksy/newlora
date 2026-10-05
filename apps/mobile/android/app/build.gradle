@@ -76,6 +76,16 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def embeddedGitSha = "unknown"
+try {
+    def repoRoot = rootProject.projectDir.parentFile.parentFile
+    def proc = ["git", "-C", repoRoot.absolutePath, "rev-parse", "HEAD"].execute()
+    proc.waitFor()
+    def sha = proc.text.trim()
+    if (proc.exitValue() == 0 && sha ==~ /[0-9a-fA-F]{7,64}/) embeddedGitSha = sha
+} catch (Exception ignored) {
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -86,8 +96,9 @@ android {
         applicationId "com.newlora"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        versionName "1.2"
+        buildConfigField "String", "EMBEDDED_GIT_SHA", "\"${embeddedGitSha}\""
         manifestPlaceholders = [usesCleartextTraffic: "false"]
     }
     signingConfigs {

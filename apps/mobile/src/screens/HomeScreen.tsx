@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { Resource } from '@newlora/contracts';
 import { useLocale, isolate } from '../i18n';
+import { OTA_VERIFICATION } from '../ota/diagnostics';
 import { space, useColors } from '../theme';
 import { Chip } from '../components/Chip';
 import { EmptyState } from '../components/EmptyState';
@@ -30,6 +31,9 @@ export function HomeScreen({
         <Icon name="brand" size={32} color={colors.text} />
         <Label accessibilityRole="header" style={[ui.title, styles.greeting]}>
           {t('greeting')}
+        </Label>
+        <Label testID="nanobot-ota-proof" style={[styles.proof, { color: colors.text }]}>
+          {isolate(OTA_VERIFICATION)}
         </Label>
       </View>
       {composer}
@@ -70,6 +74,7 @@ const styles = StyleSheet.create({
   page: { gap: space.lg },
   hero: { alignItems: 'center', gap: 12, paddingTop: 28, paddingBottom: 8 },
   greeting: { fontSize: 34, lineHeight: 37, fontWeight: '400', textAlign: 'center' },
+  proof: { fontSize: 13, letterSpacing: 0.6, textAlign: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   row: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
   ltr: { writingDirection: 'ltr' },

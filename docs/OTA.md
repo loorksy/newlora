@@ -18,6 +18,8 @@ This is not Expo Updates, App Center, or CodePush. The app downloads a Hermes bu
 
 The current runtime id is `newlora-android-runtime-1`. The bootstrap app requests the `preview` channel only. It does not change channels by itself. A manifest whose `runtimeVersion` does not match is rejected. The installed bundle keeps running, and About shows `APK update required`. The app does not download or sideload APKs.
 
+App version 1.1 stored the downloaded Hermes file by first decoding it as UTF-8. Hermes bytecode is not UTF-8, so that decode threw, the release was never written, and the embedded bundle kept running. Version 1.2 writes those bytes without a text decode. An OTA cannot repair a 1.1 install, because that install never stores the new file. Install the 1.2 bootstrap APK, then apply the preview update from About.
+
 ## Endpoints
 
 | Channel | Manifest |
@@ -46,7 +48,7 @@ scripts/publish-mobile-update.sh preview
 scripts/publish-mobile-update.sh stable
 ```
 
-The script records the git SHA, builds a minified Android bundle, compiles it with Hermes, hashes it, asks the update host to sign the canonical message, and switches that channel's manifest with an atomic rename. The previous release directory stays in place. The script does not restart the API, worker, scheduler, notifier, voice, browser, PostgreSQL, or Redis.
+The script records the git SHA of the checkout it is run from, builds a fresh minified Android bundle with Metro's cache reset, compiles that output with Hermes, hashes it, asks the update host to sign the canonical message, and switches that channel's manifest with an atomic rename. It does not reuse a previous bundle file. The previous release directory stays in place. The script does not restart the API, worker, scheduler, notifier, voice, browser, PostgreSQL, or Redis.
 
 `preview` is the channel compiled into the bootstrap APK. Do not publish to `stable` until that channel should move.
 
@@ -58,7 +60,7 @@ A download is stored under a temporary directory, checked, then renamed. The kno
 
 The app does not reload while text is being composed, a file is attached, a run is streaming, a voice call is active, or credentials are being submitted. When a compatible update is staged and the screen is idle, a sheet says `Newlora has been updated` and offers `Update now`. That restarts the process so Hermes loads the pending file. Dismissing the sheet leaves the update pending for the next cold start.
 
-About shows the native version, runtime id, channel, OTA id, git SHA when the manifest has one, last check time, and one of: Up to date, Checking, Downloading, Update ready, Applying, APK update required, Update failed. Paths on disk are not shown.
+About shows the native version, version code, runtime id, channel, embedded build id, the bundle that is actually running (`embedded` or `OTA`), that bundle's update id, the known-good id, the pending id, the last check, the last error, and the running bundle's own git SHA. Those ids come from the local boot record, not from the latest server manifest. Paths on disk are not shown. Sanitized log lines use fixed names such as `OTA_CHECK_STARTED`, `OTA_STAGED`, `OTA_BOOT_FROM_OTA`, `OTA_HASH_REJECTED`, and `OTA_ROLLBACK`. They do not include credentials or signing keys.
 
 There is no WebSocket payload for update bytes. A live `app_update_available` event was not added, because that would require an API change and a restart of the running API. The app polls the signed manifest instead.
 

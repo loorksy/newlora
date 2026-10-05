@@ -35,7 +35,8 @@ trap restore EXIT
 CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 cat > "$STAMP" << EOF
 /** Factory-bundle label. Publish overwrites a temporary copy while bundling an OTA. */
-export const NATIVE_VERSION = '1.1';
+export const NATIVE_VERSION = '1.2';
+export const VERSION_CODE = 3;
 export const GIT_SHA = '${SHA}';
 export const RELEASE_LABEL = '${LABEL}';
 EOF
@@ -51,7 +52,8 @@ npx react-native bundle \
   --entry-file index.js \
   --bundle-output "$WORK/index.android.bundle" \
   --assets-dest "$WORK/assets" \
-  --minify true
+  --minify true \
+  --reset-cache
 HERMES="$ROOT/node_modules/react-native/sdks/hermesc/linux64-bin/hermesc"
 if [ ! -x "$HERMES" ]; then
   echo "hermesc is missing" >&2
@@ -72,7 +74,7 @@ cat > "$WORK/manifest.json" << EOF
   "id": "${ID}",
   "channel": "${CHANNEL}",
   "platform": "android",
-  "version": "1.1",
+  "version": "1.2",
   "runtimeVersion": "${RUNTIME}",
   "createdAt": "${CREATED}",
   "gitSha": "${SHA}",
