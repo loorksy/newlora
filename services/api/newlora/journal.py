@@ -17,7 +17,12 @@ def operation_key(run_id: str, tool: str, args: dict, slot: str | None = None) -
         subject = args.get("type", "artifact")
     if tool == "manage_task":
         subject += ":" + args.get("action", "")
-    if slot and tool in {"update_recommendation", "manage_task", "create_artifact"}:
+    if slot and tool in {
+        "update_recommendation",
+        "manage_task",
+        "create_artifact",
+        "chart_render",
+    }:
         subject += ":" + slot
     digest = hashlib.sha256(json.dumps([tool, subject]).encode()).hexdigest()
     return run_id + ":" + digest

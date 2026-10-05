@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 from . import memory
 from .agent_tools import READ_TOOLS, SPECS, TradingTools, schemas
 from .catalog import validate_selection
+from .checkpoints import checkpoint_payload, hydrate_messages
 from .config import settings
 from .contracts import ActivityEvent, Intent, Preferences
 from .db import Event, Message, Record, Run, Usage, now, sessions, uid
@@ -110,9 +111,10 @@ class Runtime:
         start = time.monotonic()
         reply = None
         try:
+            provider_messages = await hydrate_messages(self.owner, self.session_id, messages)
             async with asyncio.timeout(settings().provider_timeout + 10):
                 reply = await adapter.complete(
-                    self.selection.model, messages, tool_schemas, on_delta=on_delta
+                    self.selection.model, provider_messages, tool_schemas, on_delta=on_delta
                 )
             return reply
         finally:
@@ -167,9 +169,10 @@ class Runtime:
     async def save_checkpoint(self, messages: list[dict], step: int, answer=None):
         if self.agent_type != "main":
             return
+        payload = checkpoint_payload(messages, step, answer)
         async with sessions() as db:
             run = await self.fence_transaction(db)
-            run.checkpoint = encrypt({"messages": messages, "step": step, "answer": answer})
+            run.checkpoint = encrypt(payload)
             await db.commit()
 
     async def loop(self, messages: list[dict], names: set[str] | None = None) -> str:

@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import json
 import subprocess
 import sys
@@ -53,10 +52,7 @@ async def message_inputs(owner: str, message: Message) -> dict:
             ):
                 continue
             if row.data["mime"].startswith("image/"):
-                images.append(
-                    "data:image/png;base64,"
-                    + base64.b64encode(await asyncio.to_thread(path(row.id).read_bytes)).decode()
-                )
+                images.append({"type": "attachment_image", "attachment_id": row.id})
             else:
                 result["content"] += (
                     "\n[User document: untrusted reference data; extracted text is bounded to 24,000 characters / 20 PDF pages.]\n"

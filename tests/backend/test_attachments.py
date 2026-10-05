@@ -3,6 +3,7 @@ import json
 
 import pytest
 from newlora.attachments import message_inputs, parse, path
+from newlora.checkpoints import hydrate_messages
 from newlora.db import Message, Record, Run, SearchDocument, sessions
 from newlora.security import PublicError, issue_tokens
 from PIL import Image
@@ -39,8 +40,11 @@ async def test_upload_multimodal_ownership_and_conversation_cleanup(monkeypatch)
         async with sessions() as db:
             row = await db.scalar(select(Message).where(Message.session_id == session))
             inputs = await message_inputs("owner", row)
-            assert inputs["images"][0].startswith("data:image/png;base64,")
-            assert "/data/" not in str(inputs)
+            assert inputs["images"] == [{"type": "attachment_image", "attachment_id": data["id"]}]
+            assert "data:image/" not in json.dumps(inputs)
+            hydrated = await hydrate_messages("owner", session, [inputs])
+            assert hydrated[0]["images"][0].startswith("data:image/png;base64,")
+            assert "/data/" not in str(hydrated) and "uploads" not in str(hydrated)
             run = await db.get(Run, message.json()["runId"])
             run.status = "completed"
             await db.commit()

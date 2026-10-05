@@ -30,6 +30,8 @@ See the implementation status and validation ledger in `VALIDATION.md` for what 
 
 Schema 0002 adds encrypted `runs.checkpoint`, `runs.purpose`, durable `operations`, owner-scoped `search_documents`, attachment references on messages, and usage pricing snapshots. Existing tables and provider adapters remain in place. PostgreSQL full-text search avoids a new external vector dependency. Scheduler maintenance backfills retrieval and queues bounded preference consolidation using the existing worker infrastructure.
 
+Run checkpoints store chart and upload images as references to the artifact volume, not as Base64. Provider adapters still receive data URLs, and only after the reference is resolved for the current owner and conversation. `chart_render` commits its PNG, artifact, and `chart.context` event through the same fenced operation journal as other mutations.
+
 Uploads use the authenticated API and persistent artifact volume. A fixed-purpose subprocess parses user-selected files with CPU, address-space and wall-time limits. This is infrastructure parsing, not a model-accessible filesystem or execution tool. The Android system document picker grants access only to user-selected content URIs.
 
 RRULE scheduling is a small dateutil/ZoneInfo module. OANDA instrument metadata now travels with candle results, chart artifacts and the typed chart bridge; price precision comes from `displayPrecision`, with pip location retained. OANDA candle volume is an integer count of price updates, not exchange-traded units.

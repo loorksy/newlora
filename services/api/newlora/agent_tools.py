@@ -1,4 +1,6 @@
 import base64
+import copy
+import os
 from typing import Any, Literal
 from uuid import UUID
 
@@ -166,7 +168,9 @@ class TradingTools:
             return await rt.delegate(args)
         if name == "market_sessions":
             return forex_sessions()
-        if name in {"instruments", "market_price", "market_candles", "chart_render"}:
+        if name == "chart_render":
+            return await self.render_chart(args)
+        if name in {"instruments", "market_price", "market_candles"}:
             market = await Oanda.for_owner(rt.owner)
             try:
                 if name == "instruments":
@@ -184,54 +188,7 @@ class TradingTools:
             await rt.activity(
                 "market_data_loaded", instrument=args.instrument, timeframe=args.timeframe
             )
-            if name == "market_candles":
-                return candles
-            from .catalog import capability
-
-            if not capability(rt.selection.provider, rt.selection.model)["vision"]:
-                raise PublicError("selected_model_has_no_vision")
-            state = {
-                "instrument": args.instrument,
-                "timeframe": args.timeframe,
-                "candles": candles["candles"],
-                "metadata": candles.get("metadata"),
-                "drawings": [d.model_dump(exclude_none=True) for d in args.drawings],
-                "locale": rt.preferences.language,
-            }
-            rendered = await self.browser("/render", state)
-            artifact_id = uid()
-            root = settings().artifact_dir
-            root.mkdir(parents=True, exist_ok=True)
-            path = root / (artifact_id + ".png")
-            image_bytes = base64.b64decode(rendered["png"], validate=True)
-            if len(image_bytes) > 15_000_000:
-                raise PublicError("chart_too_large")
-            path.write_bytes(image_bytes)
-            path.chmod(0o600)
-            artifact = Artifact(
-                type="chart",
-                title=f"{args.instrument} · {args.timeframe}",
-                data={**state, "imageId": artifact_id, "retrievedAt": candles["retrievedAt"]},
-            )
-            record = await self.persist("artifact", artifact.model_dump(), artifact_id)
-            await rt.activity(
-                "chart_rendered",
-                instrument=args.instrument,
-                timeframe=args.timeframe,
-                entity_id=record["id"],
-            )
-            if args.drawings:
-                await rt.activity("chart_annotation_added", entity_id=record["id"])
-            await rt.publish(
-                "chart.context",
-                {
-                    "instrument": args.instrument,
-                    "timeframe": args.timeframe,
-                    "artifactId": record["id"],
-                },
-            )
-            # Pixels stay in transient model context, not in event or usage records.
-            return {"artifact": record, "_images": ["data:image/png;base64," + rendered["png"]]}
+            return candles
         if name == "web_search":
             async with httpx.AsyncClient(timeout=25) as client:
                 response = await client.get(
@@ -419,6 +376,221 @@ class TradingTools:
                 )
             await db.commit()
             return result
+
+    async def render_chart(self, args: ChartRequest) -> dict:
+        """Persist one chart artifact per tool-call slot and replay it after a crash."""
+        rt = self.runtime
+        if rt.selection is None:
+            raise PublicError("model_not_configured", 409)
+        from .catalog import capability
+
+        if not capability(rt.selection.provider, rt.selection.model)["vision"]:
+            raise PublicError("selected_model_has_no_vision")
+        effect_key = await journal.plan(rt, "chart_render", args.model_dump(mode="json"))
+        stored, planned, image_id = await self._begin_chart(effect_key)
+        if stored is not None:
+            await self.ensure_chart_file(stored)
+            return stored
+        if planned is None or image_id is None:
+            raise PublicError("chart_rendering_failed", 502)
+        market = await Oanda.for_owner(rt.owner)
+        try:
+            candles = await market.candles(
+                MarketRequest.model_validate(planned.model_dump(exclude={"drawings"}))
+            )
+        finally:
+            await market.close()
+        await rt.activity(
+            "market_data_loaded", instrument=planned.instrument, timeframe=planned.timeframe
+        )
+        state = {
+            "instrument": planned.instrument,
+            "timeframe": planned.timeframe,
+            "candles": candles["candles"],
+            "metadata": candles.get("metadata"),
+            "drawings": [d.model_dump(exclude_none=True) for d in planned.drawings],
+            "locale": rt.preferences.language,
+        }
+        rendered = await self.browser("/render", state)
+        try:
+            image_bytes = base64.b64decode(rendered["png"], validate=True)
+        except (KeyError, TypeError, ValueError):
+            raise PublicError("chart_rendering_failed", 502) from None
+        if not image_bytes or len(image_bytes) > 15_000_000:
+            raise PublicError("chart_too_large")
+        final = artifact_path(image_id)
+        final.parent.mkdir(parents=True, exist_ok=True)
+        partial = final.with_name(final.name + ".partial")
+        try:
+            partial.write_bytes(image_bytes)
+            partial.chmod(0o600)
+            return await self._commit_chart(
+                effect_key, image_id, planned, state, candles["retrievedAt"], partial, final
+            )
+        finally:
+            partial.unlink(missing_ok=True)
+
+    async def _begin_chart(
+        self, effect_key: str
+    ) -> tuple[dict | None, ChartRequest | None, str | None]:
+        async with sessions() as db:
+            await self.runtime.fence_transaction(db)
+            operation = await db.get(Operation, effect_key)
+            if operation is None:
+                raise PublicError("chart_rendering_failed", 502)
+            if operation.state == "committed":
+                if operation.result is None:
+                    raise PublicError("chart_image_missing", 404)
+                return copy.deepcopy(operation.result), None, None
+            planned = ChartRequest.model_validate(decrypt(operation.arguments))
+            image_id = (operation.result or {}).get("imageId")
+            if isinstance(image_id, str):
+                return None, planned, image_id
+            image_id = uid()
+            operation.result = {"imageId": image_id}
+            await db.commit()
+            return None, planned, image_id
+
+    async def _commit_chart(
+        self, effect_key, image_id, args: ChartRequest, state, retrieved_at, partial, final
+    ) -> dict:
+        rt = self.runtime
+        replaced = False
+        committed_ok = False
+        async with sessions() as db:
+            try:
+                await rt.fence_transaction(db)
+                operation = await db.get(Operation, effect_key)
+                if operation is None:
+                    raise PublicError("chart_rendering_failed", 502)
+                if operation.state == "committed":
+                    if operation.result is None:
+                        raise PublicError("chart_image_missing", 404)
+                    return copy.deepcopy(operation.result)
+                if await db.get(Record, image_id):
+                    raise PublicError("chart_rendering_failed", 502)
+                os.replace(partial, final)
+                replaced = True
+                final.chmod(0o600)
+                artifact = Artifact(
+                    type="chart",
+                    title=f"{args.instrument} · {args.timeframe}",
+                    data={**state, "imageId": image_id, "retrievedAt": retrieved_at},
+                )
+                row = Record(
+                    id=image_id,
+                    owner=rt.owner,
+                    session_id=rt.session_id,
+                    kind="artifact",
+                    data=artifact.model_dump(mode="json"),
+                )
+                db.add(row)
+                await db.flush()
+                result = {
+                    "artifact": record_json(row),
+                    "_images": [{"type": "artifact_image", "artifact_id": row.id}],
+                }
+                operation.state = "committed"
+                operation.result = result
+                operation.committed_at = now()
+                db.add(
+                    Event(
+                        owner=rt.owner,
+                        session_id=rt.session_id,
+                        run_id=rt.run_id,
+                        event="agent.activity",
+                        payload={
+                            "type": "chart_rendered",
+                            "instrument": args.instrument,
+                            "timeframe": args.timeframe,
+                            "entity_id": row.id,
+                        },
+                    )
+                )
+                if args.drawings:
+                    db.add(
+                        Event(
+                            owner=rt.owner,
+                            session_id=rt.session_id,
+                            run_id=rt.run_id,
+                            event="agent.activity",
+                            payload={"type": "chart_annotation_added", "entity_id": row.id},
+                        )
+                    )
+                db.add(
+                    Event(
+                        owner=rt.owner,
+                        session_id=rt.session_id,
+                        run_id=rt.run_id,
+                        event="chart.context",
+                        payload={
+                            "instrument": args.instrument,
+                            "timeframe": args.timeframe,
+                            "artifactId": row.id,
+                        },
+                    )
+                )
+                await db.commit()
+                committed_ok = True
+                return copy.deepcopy(result)
+            except Exception:
+                if replaced and not committed_ok:
+                    final.unlink(missing_ok=True)
+                raise
+
+    async def ensure_chart_file(self, stored: dict) -> None:
+        """Recreate a missing PNG from the committed artifact without a second record."""
+        images = stored.get("_images") or []
+        if not images or images[0].get("type") != "artifact_image":
+            raise PublicError("chart_image_missing", 404)
+        try:
+            image_id = str(UUID(images[0]["artifact_id"]))
+            final = artifact_path(image_id)
+        except (KeyError, TypeError, ValueError):
+            raise PublicError("chart_image_missing", 404) from None
+        if final.is_file() and 0 < final.stat().st_size <= 15_000_000:
+            return
+        async with sessions() as db:
+            await self.runtime.fence_transaction(db)
+            row = await db.get(Record, image_id)
+            payload = row.data.get("data") if row and isinstance(row.data, dict) else None
+            if (
+                not row
+                or row.owner != self.runtime.owner
+                or row.kind != "artifact"
+                or row.session_id != self.runtime.session_id
+                or not isinstance(payload, dict)
+                or payload.get("imageId") != image_id
+            ):
+                raise PublicError("chart_image_missing", 404)
+            state = {
+                "instrument": payload.get("instrument"),
+                "timeframe": payload.get("timeframe"),
+                "candles": payload.get("candles"),
+                "metadata": payload.get("metadata"),
+                "drawings": payload.get("drawings") or [],
+                "locale": payload.get("locale") or self.runtime.preferences.language,
+            }
+        rendered = await self.browser("/render", state)
+        try:
+            image_bytes = base64.b64decode(rendered["png"], validate=True)
+        except (KeyError, TypeError, ValueError):
+            raise PublicError("chart_rendering_failed", 502) from None
+        if not image_bytes or len(image_bytes) > 15_000_000:
+            raise PublicError("chart_too_large")
+        final.parent.mkdir(parents=True, exist_ok=True)
+        partial = final.with_name(final.name + ".partial")
+        try:
+            partial.write_bytes(image_bytes)
+            partial.chmod(0o600)
+            async with sessions() as db:
+                await self.runtime.fence_transaction(db)
+                os.replace(partial, final)
+                final.chmod(0o600)
+                await db.commit()
+        except Exception:
+            partial.unlink(missing_ok=True)
+            raise
 
     async def persist(self, kind: str, data: dict, record_id: str | None = None):
         async with sessions() as db:

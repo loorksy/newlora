@@ -1,10 +1,27 @@
 # Hardening test inventory
 
-Baseline: `bf795979aca67df1cf83b7c96d8c2990b5266808`. Current suites: **101 backend + 30 mobile + 15 chart = 146 unique cases**, versus 42 + 9 + 2 at baseline. Backend executes on both SQLite and PostgreSQL; those are two executions of the same 100 cases. Fixtures mock official provider SDKs and never use paid provider credentials.
+Baseline: `bf795979aca67df1cf83b7c96d8c2990b5266808`. Current suites: **112 backend + 30 mobile + 15 chart = 157 unique cases**, versus 42 + 9 + 2 at baseline. Backend executes on both SQLite and PostgreSQL; those are two executions of the same 112 cases. Fixtures mock official provider SDKs and never use paid provider credentials.
 
 ## Added backend tests
 
 Names below include parameterized cases in the full collection further down. Existing Arabic E2E now also executes the `worker-restart` variant; the native voice mock was corrected so exceptions cannot be swallowed by its async context manager.
+
+### tests/backend/test_chart_journal.py
+
+- `test_crash_after_chart_persist_replays_one_artifact`
+- `test_chart_checkpoint_size_is_independent_of_png_bytes`
+- `test_failed_render_is_uncommitted_and_retry_uses_planned_args`
+- `test_missing_file_is_repaired_without_a_second_artifact`
+- `test_stale_worker_cannot_write_another_chart`
+- `test_distinct_chart_calls_remain_distinct`
+
+### tests/backend/test_checkpoint_images.py
+
+- `test_text_only_checkpoint_is_unchanged`
+- `test_uploaded_image_checkpoint_rehydrates_after_crash`
+- `test_hydration_preserves_ownership`
+- `test_transient_screenshot_is_not_stored_or_rehydrated`
+- `test_oversized_checkpoint_fails_without_writing`
 
 ### tests/backend/test_attachments.py
 
@@ -155,6 +172,17 @@ tests/backend/test_attachments.py::test_upload_text_encrypted_and_cross_chat_att
 tests/backend/test_attachments.py::test_upload_mime_rejection_and_bounded_chunked_request
 tests/backend/test_browser.py::test_browser_errors_omit_sensitive_page_content
 tests/backend/test_catalog.py::test_catalog_never_invents_or_includes_unrelated_models
+tests/backend/test_chart_journal.py::test_crash_after_chart_persist_replays_one_artifact
+tests/backend/test_chart_journal.py::test_chart_checkpoint_size_is_independent_of_png_bytes
+tests/backend/test_chart_journal.py::test_failed_render_is_uncommitted_and_retry_uses_planned_args
+tests/backend/test_chart_journal.py::test_missing_file_is_repaired_without_a_second_artifact
+tests/backend/test_chart_journal.py::test_stale_worker_cannot_write_another_chart
+tests/backend/test_chart_journal.py::test_distinct_chart_calls_remain_distinct
+tests/backend/test_checkpoint_images.py::test_text_only_checkpoint_is_unchanged
+tests/backend/test_checkpoint_images.py::test_uploaded_image_checkpoint_rehydrates_after_crash
+tests/backend/test_checkpoint_images.py::test_hydration_preserves_ownership
+tests/backend/test_checkpoint_images.py::test_transient_screenshot_is_not_stored_or_rehydrated
+tests/backend/test_checkpoint_images.py::test_oversized_checkpoint_fails_without_writing
 tests/backend/test_e2e.py::test_arabic_analysis_recommendation_task_push[arabic]
 tests/backend/test_e2e.py::test_arabic_analysis_recommendation_task_push[worker-restart]
 tests/backend/test_journal.py::test_planned_operation_survives_crash_and_replan_wording
@@ -242,5 +270,5 @@ tests/backend/test_voice.py::test_live_rejects_missing_provider_session_identity
 tests/backend/test_voice.py::test_voice_cancellation_is_owned_idempotent_and_blocks_research
 tests/backend/test_voice.py::test_missing_response_id_and_stale_voice_fence_cannot_record_usage
 
-101 tests collected in 1.68s
+112 tests collected
 ```

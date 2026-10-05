@@ -7,19 +7,31 @@ Hardening checked 2026-10-05 against the independent Newlora alpha. PR #1 must r
 | Check | Observed result |
 |---|---|
 | Ruff lint / format | Pass |
-| mypy | Pass, 29 API modules |
-| Backend on SQLite | 101 tests pass |
-| Backend on PostgreSQL 17 | The same 101 tests pass using actual PostgreSQL transactions/indexes/locks |
+| mypy | Pass, 30 API modules |
+| Backend on SQLite | 112 tests pass |
+| Backend on PostgreSQL 16.15 | The same 112 tests pass using actual PostgreSQL transactions/indexes/locks |
 | ESLint / TypeScript | Pass across mobile, contracts and chart |
 | Mobile Jest | 30 tests pass |
 | Chart Vitest | 15 tests pass |
 | Chart production bundle | Vite/TypeScript build passes |
 
-There are **146 unique passing cases**, 93 more than the baseline's 53. PostgreSQL and SQLite execution do not count as separate unique tests. [Exact test inventory](TEST_INVENTORY.md) lists names and the complete backend collection. Tests retain existing provider/runtime/security coverage and add retrieval, journal recovery, attachments, recurrence/DST, precision, catalog/probes/pricing, notifications, voice and mobile behavior.
+There are **157 unique passing cases**, 104 more than the baseline's 53. PostgreSQL and SQLite execution do not count as separate unique tests. [Exact test inventory](TEST_INVENTORY.md) lists names and the complete backend collection. Tests retain existing provider/runtime/security coverage and add retrieval, journal recovery, attachments, recurrence/DST, precision, catalog/probes/pricing, notifications, voice, checkpoint image references, crash-safe chart rendering, and mobile behavior.
 
 ### Mocked provider tests
 
 OpenAI, Anthropic and Z.AI tests mock their official SDK clients. The Arabic E2E and additional `worker-restart` E2E exercise intent → OANDA HTTP normalization → chart-image fixture → multimodal input → recommendation → task → replacement worker → simulated push. They do not establish live market correctness, provider access, or FCM delivery. Voice authorization, provider events, research delegation and usage dedupe are mocked; no microphone/WebRTC media was exercised by Jest.
+
+## Checkpoint and chart recovery pass
+
+Checked on this workspace after `e8dae596e05805ee0d078fe7e7666205d8422519`:
+
+- Ruff lint, Ruff format, and mypy passed (30 API modules, including checkpoint serialization).
+- Backend pytest passed twice: 112 tests on SQLite and the same 112 on PostgreSQL 16.15. PostgreSQL 17 was not installed here.
+- Fresh Alembic `upgrade head` on an empty PostgreSQL 16 database reached revision `0002`, and `alembic check` reported `No new upgrade operations detected`.
+- ESLint, TypeScript, Jest (30), chart Vitest (15), and the production chart bundle passed.
+- The public egress proxy, unchanged, returned HTTP 200 for `https://example.com` and `http://example.com`, and HTTP 403 for `127.0.0.1`, `10.0.0.1`, and `169.254.169.254`. SSRF checks were not weakened. The full Playwright browser container was built but not used for a live page load in this pass.
+- API image `newlora-api:local` built with BuildKit: `sha256:455e7487c07dbfa13aea5cc0c25922aa13bd22cf12e4059e9db305cc22e37a4f`. Browser image `newlora-browser:local`: `sha256:da38ba0c1874dc5980c47987f2588a7fb1835886efa068365d6af0e727a3c06f`. This host's Docker daemon needed the vfs storage driver because overlay mounts were rejected; that is an environment limit, not a Dockerfile change.
+- arm64 preview APK rebuilt with JDK 17, Android SDK 36, build-tools 36.0.0 and 35.0.0, NDK 27.1.12297006, and `./gradlew --no-daemon assemblePreview -PreactNativeArchitectures=arm64-v8a`. Build succeeded in 2m 8s. `apksigner verify` passed for the debug signing certificate. The package contains `lib/arm64-v8a` and no other ABI. It is not committed. SHA-256: `9cde3205f2a4c06d7be182c589b327791403fbd0f1f20e559c1152b0cacb0b92`. Output: `apps/mobile/android/app/build/outputs/apk/preview/app-preview.apk`.
 
 ## Local infrastructure and builds
 
@@ -81,7 +93,7 @@ Record device/VPS versions, provider/model IDs, timestamps, screenshots and resu
 - Single-owner VPS scope, no automatic order execution, no fixed analysis/risk strategy. No live reliability/SLA or independent security audit is claimed.
 - Cross-chat retrieval uses PostgreSQL lexical full-text plus metadata, not embeddings. Cross-language retrieval may need query translation or canonical instrument filters. Automatic canonical consolidation currently promotes evidenced language/report-format/report-detail preferences; broader research remains indexed rather than becoming identity facts.
 - Journal creation identity is one recommendation/task per structured subject per run. Changed wording cannot duplicate that creation. Multiple independent creations for the same subject in one run currently collapse; separate user requests have separate identities. Updates/artifacts use persisted tool-call slots. This limitation must be considered before claiming unrestricted multi-plan creation.
-- Durable checkpoints resume committed tools/answers. External provider requests, ephemeral browser actions and subagent research can still repeat after a crash; no external exactly-once guarantee is made.
+- Durable checkpoints resume committed tools/answers. Image bytes are not stored in `Run.checkpoint`; chart and upload images are rehydrated from the artifact volume, and browser screenshot pixels are not retained across a crash. External provider requests, ephemeral browser actions and subagent research can still repeat after a crash. A rerun subagent can render another chart because its tool-call slot is new. No external exactly-once guarantee is made.
 - Attachments support PNG/JPEG/WebP, bounded text-based PDF, UTF-8 text and CSV. Parsing runs in a resource-limited subprocess, not a separate OS/container sandbox. Scanned PDFs need OCR that is not implemented. Camera capture, offline attachment drafts and broader office formats are not included. Unsent uploaded files remain until removed or their conversation is deleted.
 - RRULE uses explicit IANA timezone/start. Spring gaps skip; fall folds run once. Downtime coalesces missed occurrences. Holiday/session interpretation requires task-specific context and separate OANDA tradeability checks.
 - Android notification receipt dedupe is persisted before display, so a crash in that narrow window can suppress the visual alert; the underlying result remains durable in chat. FCM handoff cannot be recalled. Real manufacturer background restrictions need device testing.
