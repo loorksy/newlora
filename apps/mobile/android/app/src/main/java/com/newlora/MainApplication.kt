@@ -18,9 +18,15 @@ class MainApplication : Application(), ReactApplication {
             PackageList(this).packages.apply {
               // Packages that cannot be autolinked yet can be added manually here, for example:
               add(ChartFilesPackage())
+              add(OtaPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"
+
+        override fun getJSBundleFile(): String? {
+          if (BuildConfig.DEBUG) return null
+          return OtaStore.prepare(application)
+        }
 
         override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
 

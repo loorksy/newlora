@@ -10,6 +10,8 @@ import { IconButton } from '../components/IconButton';
 import { ProviderRow, providerNames } from '../components/ProviderRow';
 import { SectionHeader } from '../components/SectionHeader';
 import { SettingRow } from '../components/SettingRow';
+import { OtaAbout } from '../components/OtaAbout';
+import { setSensitive } from '../ota/sensitivity';
 import { Button, Input, Label, Row, styles } from '../components/UI';
 
 type Connection = {
@@ -24,7 +26,6 @@ type Catalog = {
 };
 type Panel = Provider | 'oanda' | 'voice' | null;
 const providers: Provider[] = ['openai', 'anthropic', 'zai'];
-const APP_VERSION = '1.0';
 
 export function SettingsScreen({
   onLanguage,
@@ -163,9 +164,7 @@ export function SettingsScreen({
           />
           <SectionHeader title={t('about')} />
           <Label style={styles.muted}>{t('aboutBody')}</Label>
-          <Label style={styles.muted}>
-            {t('version')} · {isolate(APP_VERSION)}
-          </Label>
+          <OtaAbout />
           <Label style={styles.muted}>{t('security')}</Label>
           <Button
             label={t('signOut')}
@@ -186,6 +185,7 @@ export function SettingsScreen({
           onAccount={setAccount}
           onEnvironment={setEnvironment}
           onSave={() => {
+            setSensitive('credentials', true);
             void safe(async () => {
               await request('/settings/credentials/' + panel, 'PUT', {
                 key: keys[panel],
@@ -195,19 +195,21 @@ export function SettingsScreen({
               setAccount('');
               await load();
               setStatus(t('saved'));
-            });
+            }).finally(() => setSensitive('credentials', false));
           }}
           onTest={() => {
+            setSensitive('credentials', true);
             void safe(async () => {
               await request('/settings/credentials/' + panel + '/test', 'POST');
               await load();
-            });
+            }).finally(() => setSensitive('credentials', false));
           }}
           onDelete={() => {
+            setSensitive('credentials', true);
             void safe(async () => {
               await request('/settings/credentials/' + panel, 'DELETE');
               await load();
-            });
+            }).finally(() => setSensitive('credentials', false));
           }}
           onRefresh={
             panel === 'oanda'

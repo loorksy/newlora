@@ -13,6 +13,8 @@
   "dependencies": {
     "@lobehub/icons-rn": "2.14.0",
     "@newlora/contracts": "0.1.0",
+    "@noble/ed25519": "^2.2.3",
+    "@noble/hashes": "^1.8.0",
     "@notifee/react-native": "^9.1.8",
     "@react-native-firebase/app": "^23.0.0",
     "@react-native-firebase/messaging": "^23.0.0",

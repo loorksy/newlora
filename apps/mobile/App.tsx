@@ -29,6 +29,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SignInScreen } from './src/screens/SignInScreen';
 import { TasksScreen } from './src/screens/TasksScreen';
 import { UsageScreen } from './src/screens/UsageScreen';
+import { OtaCoordinator } from './src/ota/OtaCoordinator';
 import { baseURL, request } from './src/services/api';
 
 function Application({
@@ -68,6 +69,14 @@ function Application({
     return (
       <SafeAreaView style={[shell.root, { direction: rtl ? 'rtl' : 'ltr' }]}>
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
+        <OtaCoordinator
+          typing={false}
+          uploading={false}
+          streaming={false}
+          voice={false}
+          submitting={app.busy}
+          reduceMotion={app.reduceMotion}
+        />
         <ScrollView
           style={shell.flex}
           keyboardShouldPersistTaps="handled"
@@ -242,6 +251,14 @@ function Application({
           </ScrollView>
         )}
       </KeyboardAvoidingView>
+      <OtaCoordinator
+        typing={app.text.trim().length > 0}
+        uploading={app.files.length > 0}
+        streaming={Boolean(app.run) || app.stream !== ''}
+        voice={Boolean(app.call)}
+        submitting={app.busy}
+        reduceMotion={app.reduceMotion}
+      />
       <Drawer
         visible={app.drawer}
         screen={app.session ? 'chats' : app.screen}
