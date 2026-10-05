@@ -4,18 +4,32 @@ import notifee, {
   EventType,
 } from '@notifee/react-native';
 import messaging from '@react-native-firebase/messaging';
-import { Linking, PermissionsAndroid, Platform } from 'react-native';
+import {
+  Linking,
+  PermissionsAndroid,
+  Platform,
+  NativeModules,
+} from 'react-native';
 import { request } from './api';
 import { translate, type Language } from '../i18n';
 export async function receivePush(
   data: Record<string, string> = {},
   lang: Language = 'ar',
 ) {
+  if (
+    !data.notificationId ||
+    !(await NativeModules.NewloraAttachments.claimNotification(
+      data.notificationId,
+    ))
+  )
+    return;
   const call = data.mode === 'call';
+  const urgent = data.mode === 'urgent';
   const channelId = await notifee.createChannel({
-    id: call ? 'newlora-calls' : 'newlora-updates',
+    id: call ? 'newlora-calls' : urgent ? 'newlora-urgent' : 'newlora-updates',
     name: translate(lang, call ? 'voice' : 'tasks'),
-    importance: call ? AndroidImportance.HIGH : AndroidImportance.DEFAULT,
+    importance:
+      call || urgent ? AndroidImportance.HIGH : AndroidImportance.DEFAULT,
     sound: 'default',
   });
   await notifee.displayNotification({
@@ -25,6 +39,7 @@ export async function receivePush(
     data,
     android: {
       channelId,
+      onlyAlertOnce: true,
       category: call ? AndroidCategory.CALL : AndroidCategory.EVENT,
       pressAction: { id: call ? 'accept' : 'open', launchActivity: 'default' },
       ...(call
@@ -50,6 +65,8 @@ export function routeNotification(
   data: Record<string, unknown>,
   action = 'open',
 ) {
+  if (data.notificationId)
+    void notifee.cancelNotification(String(data.notificationId));
   if (action === 'decline') return;
   if (data.mode === 'call')
     void Linking.openURL(
@@ -57,6 +74,15 @@ export function routeNotification(
         encodeURIComponent(String(data.notificationId || '')) +
         '?session=' +
         encodeURIComponent(String(data.sessionId || '')),
+    );
+  else if (data.recommendationId)
+    void Linking.openURL(
+      'newlora://recommendation/' +
+        encodeURIComponent(String(data.recommendationId)),
+    );
+  else if (data.taskId)
+    void Linking.openURL(
+      'newlora://task/' + encodeURIComponent(String(data.taskId)),
     );
   else if (data.sessionId)
     void Linking.openURL(

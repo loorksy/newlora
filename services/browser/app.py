@@ -57,6 +57,7 @@ class Render(BaseModel):
     candles: list[dict] = Field(max_length=5000)
     drawings: list[dict] = Field(default_factory=list, max_length=100)
     locale: str = "en"
+    metadata: dict | None = None
 
 
 class Action(BaseModel):

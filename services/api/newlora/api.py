@@ -31,6 +31,7 @@ from .db import (
     Credential,
     DeviceSession,
     Message,
+    Outbox,
     Record,
     Run,
     Task,
@@ -47,7 +48,6 @@ from .runtime import preferences
 from .security import (
     PublicError,
     authenticate,
-    credential,
     encrypt,
     issue_tokens,
     password_ok,
@@ -68,7 +68,8 @@ async def owner(authorization: str = Header(default="")):
 @app.middleware("http")
 async def guards(request: Request, call_next):
     request_id = uid()
-    if int(request.headers.get("content-length", "0")) > 2_000_000:
+    body_limit = 8_100_000 if request.url.path.endswith("/attachments") else 2_000_000
+    if int(request.headers.get("content-length", "0")) > body_limit:
         return JSONResponse({"code": "request_too_large"}, 413)
     if request.url.path != "/health/live":
         try:
@@ -275,40 +276,22 @@ async def test_credential(name: CredentialName, user=Depends(owner)):
             finally:
                 await market.close()
         elif name == "zai":
-            from .providers import provider
+            from .provider_checks import test_zai
 
-            c = await credential(user, name)
-            adapter = provider(name, c["key"])
-            try:
-                # Official SDK has no key introspection API; one small metered call is needed.
-                reply = await adapter.complete(
-                    "glm-5.3-flash",
-                    [{"role": "user", "content": "Reply OK."}],
-                    [],
-                    native={"max_tokens": 32},
-                )
-                async with sessions() as db:
-                    db.add(
-                        Usage(
-                            owner=user,
-                            provider=name,
-                            model="glm-5.3-flash",
-                            agent_type="connection_test",
-                            input_tokens=reply.input_tokens,
-                            output_tokens=reply.output_tokens,
-                            total_tokens=reply.total_tokens,
-                            latency_ms=0,
-                            success=True,
-                        )
-                    )
-                    await db.commit()
-            finally:
-                await adapter.close()
+            status = await test_zai(user)
+            if status != "connected":
+                raise PublicError(status)
         else:
             await catalog(user, name, refresh=True)
         status = "connected"
+    except PublicError as exc:
+        status = (
+            exc.code
+            if exc.code in {"invalid_credential", "model_unavailable", "provider_unavailable"}
+            else "failed"
+        )
     except Exception:
-        status = "failed"
+        status = "provider_unavailable"
     async with sessions() as db:
         row = await db.scalar(
             select(Credential).where(Credential.owner == user, Credential.provider == name)
@@ -358,10 +341,34 @@ async def conversations(q: str = Query(default="", max_length=200), user=Depends
                 Record.data["title"].as_string().icontains(q, autoescape=True)
                 | Record.id.in_(matching)
             )
-        return [
-            record_json(r)
-            for r in (await db.scalars(query.order_by(Record.updated_at.desc()).limit(100))).all()
-        ]
+        result = []
+        for conversation in (
+            await db.scalars(query.order_by(Record.updated_at.desc()).limit(100))
+        ).all():
+            latest = await db.scalar(
+                select(Run)
+                .where(Run.session_id == conversation.id, Run.purpose == "chat")
+                .order_by(Run.created_at.desc())
+                .limit(1)
+            )
+            monitoring = await db.scalar(
+                select(Task.id)
+                .where(Task.session_id == conversation.id, Task.status == "active")
+                .limit(1)
+            )
+            item = record_json(conversation)
+            state = (
+                "analyzing"
+                if latest and latest.status == "running"
+                else latest.status
+                if latest
+                else None
+            )
+            if monitoring and state not in {"analyzing", "queued"}:
+                state = "monitored"
+            item["data"] = {**item["data"], "activityStatus": state}
+            result.append(item)
+        return result
 
 
 @app.patch("/conversations/{session_id}")
@@ -375,7 +382,7 @@ async def rename(session_id: str, data: ConversationInput, user=Depends(owner)):
 
 @app.delete("/conversations/{session_id}")
 async def remove_conversation(session_id: str, user=Depends(owner)):
-    from .db import Effect, Event
+    from .db import Effect, Event, Operation, SearchDocument
 
     async with sessions() as db:
         row = await owned_record(db, session_id, user, "conversation")
@@ -393,24 +400,74 @@ async def remove_conversation(session_id: str, user=Depends(owner)):
                 )
             )
         ).all()
+        from .attachments import path as attachment_path
+
+        uploads = (
+            await db.scalars(
+                select(Record).where(
+                    Record.owner == user,
+                    Record.kind == "attachment",
+                    Record.session_id == session_id,
+                )
+            )
+        ).all()
+        files_to_remove = [attachment_path(upload.id) for upload in uploads]
         for artifact in charts:
             image_id = artifact.data.get("data", {}).get("imageId")
             if image_id:
                 from .agent_tools import artifact_path
 
-                artifact_path(image_id).unlink(missing_ok=True)
+                files_to_remove.append(artifact_path(image_id))
+        source_ids = set(
+            (
+                await db.scalars(
+                    select(Record.id).where(Record.owner == user, Record.session_id == session_id)
+                )
+            ).all()
+        )
+        memories = (
+            await db.scalars(
+                select(Record).where(
+                    Record.owner == user, Record.kind.in_(["memory", "memory_revision"])
+                )
+            )
+        ).all()
+        for fact in memories:
+            sources = {
+                fact.data.get("source"),
+                (fact.data.get("before") or {}).get("source"),
+                (fact.data.get("after") or {}).get("source"),
+            }
+            if source_ids.intersection(sources):
+                await db.execute(
+                    delete(SearchDocument).where(SearchDocument.id == "record:" + fact.id)
+                )
+                await db.delete(fact)
+        await db.execute(
+            delete(Outbox).where(
+                Outbox.owner == user, Outbox.payload["sessionId"].as_string() == session_id
+            )
+        )
         await db.execute(delete(Event).where(Event.owner == user, Event.session_id == session_id))
         await db.execute(delete(Message).where(Message.session_id == session_id))
         await db.execute(delete(Task).where(Task.session_id == session_id))
         run_ids = (await db.scalars(select(Run.id).where(Run.session_id == session_id))).all()
         for rid in run_ids:
             await db.execute(delete(Effect).where(Effect.key.startswith(rid + ":")))
+        await db.execute(delete(Operation).where(Operation.run_id.in_(run_ids)))
+        await db.execute(
+            delete(SearchDocument).where(
+                SearchDocument.owner == user, SearchDocument.session_id == session_id
+            )
+        )
         await db.execute(delete(Run).where(Run.session_id == session_id))
         await db.execute(
             delete(Record).where(Record.owner == user, Record.session_id == session_id)
         )
         await db.delete(row)
         await db.commit()
+    for file in files_to_remove:
+        file.unlink(missing_ok=True)
     return {"ok": True}
 
 
@@ -439,6 +496,7 @@ async def history(session_id: str, before: int | None = None, user=Depends(owner
         )
         return {
             "activeRunId": active_run.id if active_run else None,
+            "activeRunStatus": active_run.status if active_run else None,
             "conversation": record_json(row),
             "messages": [
                 {
@@ -446,6 +504,7 @@ async def history(session_id: str, before: int | None = None, user=Depends(owner
                     "clientId": m.client_id,
                     "role": m.role,
                     "text": m.content,
+                    "attachmentIds": m.attachments,
                     "timestamp": m.created_at.isoformat(),
                 }
                 for m in reversed(messages)
@@ -456,7 +515,8 @@ async def history(session_id: str, before: int | None = None, user=Depends(owner
 
 class ChatInput(Contract):
     clientId: str = Field(min_length=8, max_length=100)
-    text: str = Field(min_length=1, max_length=16000)
+    text: str = Field(default="", max_length=16000)
+    attachmentIds: list[str] = Field(default_factory=list, max_length=4)
 
 
 @app.post("/conversations/{session_id}/messages")
@@ -469,10 +529,34 @@ async def chat(session_id: str, data: ChatInput, user=Depends(owner)):
         )
         if existing:
             return {"runId": existing.id}
-        run = Run(owner=user, session_id=session_id, request_key=data.clientId, objective=data.text)
+        if not data.text.strip() and not data.attachmentIds:
+            raise PublicError("message_empty")
+        for aid in set(data.attachmentIds):
+            attachment = await db.scalar(select(Record).where(Record.id == aid).with_for_update())
+            if (
+                not attachment
+                or attachment.owner != user
+                or attachment.kind != "attachment"
+                or attachment.session_id != session_id
+                or attachment.data.get("linked")
+            ):
+                raise PublicError("attachment_unavailable", 404)
+            attachment.data = {**attachment.data, "linked": True}
+        run = Run(
+            owner=user,
+            session_id=session_id,
+            request_key=data.clientId,
+            objective=data.text or "Inspect the attached user reference files.",
+        )
         db.add(run)
         db.add(
-            Message(session_id=session_id, client_id=data.clientId, role="user", content=data.text)
+            Message(
+                session_id=session_id,
+                client_id=data.clientId,
+                role="user",
+                content=data.text,
+                attachments=data.attachmentIds,
+            )
         )
         if not row.data.get("title"):
             row.data = {**row.data, "title": data.text[:80]}
@@ -640,7 +724,9 @@ async def task_action(
             raise HTTPException(404, "not_found")
         row.status = {"pause": "paused", "resume": "active", "cancel": "cancelled"}[action]
         if action == "resume":
-            row.next_check = now()
+            from .scheduling import next_check
+
+            row.next_check = next_check(row.config, now(), initial=True)
         else:
             pending = (
                 await db.scalars(
@@ -765,7 +851,11 @@ async def voice_research(voice_id: str, data: VoiceResearch, user=Depends(owner)
 
     async with sessions() as db:
         row = await owned_record(db, voice_id, user, "voice")
-    run_id = await queue_research(user, row.session_id, "voice:" + data.callId, data.objective)
+        if row.data.get("status") not in {"pending", "connected", "realtime"}:
+            raise PublicError("voice_session_closed", 409)
+    run_id = await queue_research(
+        user, row.session_id, "voice:" + voice_id + ":" + data.callId, data.objective
+    )
     return {"runId": run_id}
 
 
@@ -777,3 +867,48 @@ async def run_status(run_id: str, user=Depends(owner)):
             raise HTTPException(404, "not_found")
         answer = await db.scalar(select(Message).where(Message.client_id == run_id + ":answer"))
         return {"status": run.status, "text": answer.content if answer else None}
+
+
+from .attachments import register as register_attachments  # noqa: E402
+
+register_attachments(app, owner)
+
+
+@app.post("/voice/{voice_id}/stop")
+async def stop_voice(voice_id: str, user=Depends(owner)):
+    async with sessions() as db:
+        row = await owned_record(db, voice_id, user, "voice")
+        await db.refresh(row, with_for_update=True)
+        row.data = {**row.data, "status": "closed", "fence": uid()}
+        await db.commit()
+    return {"ok": True}
+
+
+@app.get("/notifications/{notification_id}")
+async def notification_status(notification_id: str, user=Depends(owner)):
+    async with sessions() as db:
+        row = await db.get(Outbox, notification_id)
+        if not row or row.owner != user:
+            raise PublicError("notification_unavailable", 404)
+        task = await db.get(Task, row.payload["taskId"]) if row.payload.get("taskId") else None
+        available = row.status != "cancelled" and (
+            not row.payload.get("taskId")
+            or task is not None
+            and task.status not in {"cancelled", "paused", "failed"}
+        )
+        if (
+            row.payload.get("mode") == "call"
+            and now().timestamp() - row.created_at.timestamp() > 120
+        ):
+            available = False
+        return {
+            "available": available,
+            "sessionId": row.payload.get("sessionId"),
+            "taskId": row.payload.get("taskId"),
+            "recommendationId": row.payload.get("recommendationId"),
+        }
+
+
+from .body_limit import BodyLimit  # noqa: E402
+
+app.add_middleware(BodyLimit)

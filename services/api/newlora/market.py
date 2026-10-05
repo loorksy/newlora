@@ -115,8 +115,10 @@ class Oanda:
         ]
 
     async def require(self, instrument):
-        if not any(x["name"] == instrument for x in await self.instruments()):
-            raise PublicError("instrument_unsupported")
+        for item in await self.instruments():
+            if item["name"] == instrument:
+                return item
+        raise PublicError("instrument_unsupported")
 
     async def pricing(self, instrument):
         await self.require(instrument)
@@ -138,7 +140,7 @@ class Oanda:
         }
 
     async def candles(self, args: MarketRequest):
-        await self.require(args.instrument)
+        metadata = await self.require(args.instrument)
         if args.timeframe not in TIMEFRAMES:
             raise PublicError("timeframe_unsupported")
         params = {"granularity": args.timeframe, "price": "M"}
@@ -149,7 +151,17 @@ class Oanda:
         if not (args.from_time and args.to_time):
             params["count"] = str(args.count)
         raw = await self.get(f"/instruments/{args.instrument}/candles", params)
-        return normalize_candles(raw, args.instrument, args.timeframe)
+        result = normalize_candles(raw, args.instrument, args.timeframe)
+        precision = metadata.get("displayPrecision")
+        if not isinstance(precision, int) or not 0 <= precision <= 12:
+            raise PublicError("instrument_metadata_unavailable")
+        result["metadata"] = {
+            "pricePrecision": precision,
+            "pipLocation": metadata.get("pipLocation"),
+            "volumePrecision": 0,
+            "volumeUnit": "price_updates",
+        }
+        return result
 
 
 def forex_sessions(at: datetime | None = None) -> dict:

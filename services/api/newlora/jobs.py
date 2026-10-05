@@ -6,9 +6,11 @@ import structlog
 from redis.asyncio import Redis
 from sqlalchemy import and_, exists, or_, select, update
 
+from . import memory
 from .config import settings
 from .db import Event, Outbox, Record, Run, Task, now, sessions, uid
 from .runtime import Runtime, preferences
+from .scheduling import next_check
 from .security import PublicError
 
 log = structlog.get_logger()
@@ -27,7 +29,7 @@ async def schedule_due():
         for task in tasks:
             config = task.config
             until = datetime.fromisoformat(config["until"]) if config.get("until") else None
-            if until and until <= now():
+            if until and until.timestamp() < now().timestamp():
                 task.status, task.next_check = "completed", None
                 continue
             running = await db.scalar(
@@ -52,8 +54,10 @@ async def schedule_due():
                         + __import__("json").dumps(config, ensure_ascii=False),
                     )
                 )
-            interval = config.get("interval_seconds")
-            task.next_check = now() + timedelta(seconds=interval) if interval else None
+            task.next_check = next_check(config, task.next_check)
+            # Coalesce missed occurrences after downtime; keep the calendar anchor.
+            if task.next_check and task.next_check.timestamp() <= now().timestamp():
+                task.next_check = next_check(config, now())
         await db.commit()
 
 
@@ -160,7 +164,13 @@ async def execute(run: Run):
     status, code = "completed", None
     try:
         async with asyncio.timeout(900):
-            await Runtime(run, await preferences(run.owner)).run(run.objective)
+            runtime = Runtime(run, await preferences(run.owner))
+            if run.purpose == "memory":
+                await memory.consolidate(
+                    run.owner, run.session_id, runtime.call, runtime.fence_transaction
+                )
+            else:
+                await runtime.run(run.objective)
     except PublicError as exc:
         status, code = ("cancelled" if exc.code == "run_interrupted" else "failed"), exc.code
     except Exception:
@@ -183,6 +193,18 @@ async def execute(run: Run):
                     payload={"code": code} if code else {},
                 )
             )
+            if status == "completed" and run.purpose == "chat" and not run.task_id:
+                prior = await db.scalar(
+                    select(Outbox.id).where(Outbox.dedupe == run.id + ":completion")
+                )
+                if not prior:
+                    db.add(
+                        Outbox(
+                            owner=run.owner,
+                            dedupe=run.id + ":completion",
+                            payload={"mode": "normal", "sessionId": run.session_id},
+                        )
+                    )
             if status == "failed" and run.task_id:
                 task = await db.get(Task, run.task_id)
                 if task:
@@ -217,6 +239,12 @@ async def deliver_outbox():
         )
         if not row:
             return
+        if row.payload.get("taskId"):
+            task = await db.get(Task, row.payload["taskId"])
+            if not task or task.status in {"cancelled", "paused", "failed"}:
+                row.status = "cancelled"
+                await db.commit()
+                return
         row.status, row.fence = "sending", uid()
         row.lease_until = now() + timedelta(seconds=90)
         row.attempts += 1
@@ -254,6 +282,9 @@ async def serve(role: str):
         try:
             if role == "scheduler":
                 await schedule_due()
+                from .maintenance import maintain_memory
+
+                await maintain_memory()
             elif role == "notifier":
                 await deliver_outbox()
             else:

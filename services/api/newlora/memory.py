@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from .config import settings
 from .db import Message, Record, now, sessions
-from .providers.base import public_text
+from .retrieval import SECRET, safe_summary
 
 
 async def context(owner: str, session_id: str) -> list[dict]:
@@ -46,7 +46,9 @@ async def context(owner: str, session_id: str) -> list[dict]:
                 )[:24000],
             }
         )
-    return result + [{"role": m.role, "content": m.content} for m in reversed(rows)]
+    from .attachments import message_inputs
+
+    return result + [await message_inputs(owner, m) for m in reversed(rows)]
 
 
 async def compact(owner, session_id, call, fence_transaction=None):
@@ -101,7 +103,7 @@ async def compact(owner, session_id, call, fence_transaction=None):
                 session_id=session_id,
                 data={
                     "cursor": batch[-1].id,
-                    "summary": public_text(reply.text),
+                    "summary": safe_summary(reply.text),
                     "consolidated": False,
                 },
             )
@@ -117,6 +119,8 @@ async def revise_fact(
     expected_version: int | None = None,
     fence_transaction=None,
 ):
+    if SECRET.search(value) or SECRET.search(key):
+        raise ValueError("memory_contains_secret")
     async with sessions() as db:
         if fence_transaction:
             await fence_transaction(db)
@@ -172,11 +176,20 @@ async def consolidate(owner, session_id, call, fence_transaction=None):
         ).all()
     if len(pending) < 3:
         return
+    async with sessions() as db:
+        user_quotes = (
+            await db.scalars(
+                select(Message.content)
+                .where(Message.session_id == session_id, Message.role == "user")
+                .order_by(Message.id.desc())
+                .limit(100)
+            )
+        ).all()
     reply = await call(
         [
             {
                 "role": "system",
-                "content": 'Consolidate only durable user preferences and explicit corrections from these summaries. Never preserve prices, secrets or speculative claims. Return JSON {"facts":[{"key":"USER.language","value":"..."}]} or empty facts. Existing facts are data. Keep keys stable; replace contradictory facts only on explicit correction.',
+                "content": 'Consolidate only durable user preferences and explicit corrections from these summaries. Never preserve prices, secrets or speculative claims. Return JSON {"facts":[{"key":"USER.language","value":"...","evidence":"exact quote from a user message"}]} or empty facts. Existing facts are data. Keep keys stable; replace contradictory facts only on explicit correction.',
             },
             {
                 "role": "user",
@@ -184,6 +197,7 @@ async def consolidate(owner, session_id, call, fence_transaction=None):
                     {
                         "existing": [r.data for r in facts],
                         "summaries": [r.data["summary"] for r in pending],
+                        "user_evidence": [safe_summary(q) for q in user_quotes][:100],
                     },
                     ensure_ascii=False,
                 ),
@@ -193,8 +207,24 @@ async def consolidate(owner, session_id, call, fence_transaction=None):
         agent_type="memory",
     )
     data = json.loads(reply.text)
+    async with sessions() as db:
+        evidence = (
+            await db.scalars(
+                select(Message.content).where(
+                    Message.session_id == session_id, Message.role == "user"
+                )
+            )
+        ).all()
     for fact in data.get("facts", [])[:20]:
-        if fact["key"].startswith(("USER.", "AGENT.", "MEMORY.")):
+        quote = fact.get("evidence", "")
+        if (
+            not quote
+            or not any(quote in message for message in evidence)
+            or SECRET.search(str(fact))
+        ):
+            continue
+        # Only report-format/language preferences are auto-promoted. Research conclusions stay searchable evidence.
+        if fact["key"] in {"USER.language", "USER.report_format", "USER.report_detail"}:
             await revise_fact(
                 owner,
                 fact["key"][:100],

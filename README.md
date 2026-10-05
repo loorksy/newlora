@@ -2,7 +2,7 @@
 
 An independent, persistent AI trading research assistant for OANDA Forex and metals, with a native Arabic/English Android client. No automatic order execution. No fixed trading strategy. No provider gateway: OpenAI → `openai`, Anthropic → `anthropic`, Z.AI → `zai-sdk`.
 
-The platform includes a model-driven tool loop, scoped research agents, real rendered chart input, recommendations, durable monitoring, replayable events, revisioned memory, usage accounting, encrypted credentials, and in-app OpenAI voice. See [validation](docs/VALIDATION.md) for exercised checks and external acceptance work. This is not a claim that untested live services are production-validated.
+The platform includes a model-driven tool loop, scoped research agents, real rendered chart input, recommendations, durable monitoring, replayable events, cross-conversation memory search, crash-resumable mutation journals, timezone-aware recurring tasks, image/document attachments, revisioned memory, usage accounting, encrypted credentials, and in-app OpenAI voice. See [validation](docs/VALIDATION.md) for exercised checks and external acceptance work. This is not a claim that untested live services are production-validated.
 
 ## Local development
 

@@ -73,8 +73,12 @@ class TaskConfig(Contract):
     objective: str = Field(min_length=1, max_length=8000)
     instrument: str | None = None
     context: str = Field(default="", max_length=12000)
-    schedule: Literal["interval", "once", "condition", "continuous"]
+    schedule: Literal["interval", "once", "condition", "continuous", "recurrence"]
     interval_seconds: int | None = Field(default=None, ge=30, le=31536000)
+    start: AwareDatetime | None = None
+    recurrence: str | None = Field(default=None, max_length=1000)
+    timezone: str = "UTC"
+    condition: str | None = Field(default=None, max_length=8000)
     at: AwareDatetime | None = None
     until: AwareDatetime | None = None
     notification: Literal["silent", "normal", "urgent", "call"] = "normal"
@@ -84,8 +88,22 @@ class TaskConfig(Contract):
     def schedule_valid(self):
         if self.schedule == "once" and self.at is None:
             raise ValueError("one-shot task needs an explicit time")
-        if self.schedule != "once" and self.interval_seconds is None:
+        if self.schedule not in {"once", "recurrence"} and self.interval_seconds is None:
             raise ValueError("monitoring needs a polling interval")
+        from zoneinfo import ZoneInfo
+
+        from .scheduling import validate_recurrence
+
+        try:
+            ZoneInfo(self.timezone)
+            if self.schedule == "recurrence":
+                if not self.recurrence or not self.start:
+                    raise ValueError("recurrence requires start and timezone")
+                validate_recurrence(self.recurrence, self.timezone, self.start)
+        except (KeyError, TypeError) as exc:
+            raise ValueError("invalid_recurrence") from exc
+        if self.start and self.until and self.until < self.start:
+            raise ValueError("until must follow start")
         if self.at and self.until and self.until <= self.at:
             raise ValueError("until must follow start")
         return self
@@ -140,6 +158,7 @@ class ActivityEvent(Contract):
         "intent_detected",
         "tool_started",
         "tool_completed",
+        "tool_failed",
         "market_data_loaded",
         "chart_rendered",
         "chart_annotation_added",
@@ -154,6 +173,7 @@ class ActivityEvent(Contract):
         "voice_call_requested",
         "memory_compacted",
     ]
+    code: str | None = None
     tool: str | None = None
     instrument: str | None = None
     timeframe: str | None = None

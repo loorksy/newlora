@@ -14,6 +14,8 @@ export class VoiceSession {
   private channel: ReturnType<RTCPeerConnection['createDataChannel']> | null =
     null;
   private live = false;
+  private voiceId: string | null = null;
+  private seenCalls = new Set<string>();
   async start(onState: (state: string) => void, sessionId?: string) {
     this.stopped = false;
     const permission = await PermissionsAndroid.request(
@@ -57,6 +59,12 @@ export class VoiceSession {
       transport?: { sdp: string };
       id?: string;
     }>('/voice/session', 'POST', { sdp: offer.sdp, sessionId });
+    if (!session.id) throw new APIError('voice_unavailable');
+    this.voiceId = session.id;
+    if (this.stopped) {
+      void request('/voice/' + session.id + '/stop', 'POST').catch(() => {});
+      return;
+    }
     this.live = session.mode === 'live';
     channel.onmessage = (message: { data?: string }) => {
       if (session.mode !== 'realtime' || !message.data) return;
@@ -73,8 +81,12 @@ export class VoiceSession {
       }
       if (
         event.type === 'response.function_call_arguments.done' &&
-        event.name === 'research'
+        event.name === 'research' &&
+        event.call_id &&
+        session.id &&
+        !this.seenCalls.has(event.call_id)
       ) {
+        this.seenCalls.add(event.call_id);
         void this.research(session.id!, event.call_id!, event.arguments || '{}')
           .then(result => {
             if (this.stopped) return;
@@ -143,6 +155,11 @@ export class VoiceSession {
   }
   stop() {
     this.stopped = true;
+    if (this.voiceId) {
+      void request('/voice/' + this.voiceId + '/stop', 'POST').catch(() => {});
+      this.voiceId = null;
+    }
+    this.seenCalls.clear();
     if (this.live && this.channel?.readyState === 'open')
       this.channel.send(JSON.stringify({ type: 'session.close' }));
     this.channel = null;

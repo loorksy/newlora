@@ -1,6 +1,9 @@
 import json
-from datetime import timedelta
+from datetime import date, timedelta
+from typing import Literal
+from urllib.parse import urlsplit
 
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from .config import settings
@@ -9,8 +12,50 @@ from .providers import provider
 from .security import PublicError, credential
 
 
+class VerifiedModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    provider: Literal["openai", "anthropic", "zai"]
+    id: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9._:-]+$")
+    rank: int = Field(ge=0)
+    production: bool
+    deprecated: bool
+    tools: bool
+    vision: bool
+    voice: bool
+    source: str
+
+
 def manifest() -> dict:
-    return json.loads(settings().catalog_manifest.read_text())
+    try:
+        value = json.loads(settings().catalog_manifest.read_text())
+        verified = date.fromisoformat(value["verified_at"])
+        if not 0 <= (now().date() - verified).days <= 120:
+            raise ValueError("stale_manifest")
+        seen = set()
+        hosts = {
+            "openai": {"developers.openai.com", "platform.openai.com"},
+            "anthropic": {"docs.anthropic.com", "platform.claude.com", "docs.claude.com"},
+            "zai": {"docs.z.ai", "open.bigmodel.cn"},
+        }
+        for raw in value["models"]:
+            model = VerifiedModel.model_validate(raw)
+            source = urlsplit(model.source)
+            official_sdk_source = (
+                model.provider == "anthropic"
+                and source.hostname == "github.com"
+                and source.path.startswith("/anthropics/anthropic-sdk-python/")
+            )
+            if source.scheme != "https" or (
+                source.hostname not in hosts[model.provider] and not official_sdk_source
+            ):
+                raise ValueError("unverified_source")
+            key = (model.provider, model.id)
+            if key in seen:
+                raise ValueError("duplicate_model")
+            seen.add(key)
+        return value
+    except (ValueError, KeyError, TypeError, OSError):
+        raise PublicError("catalog_verification_required", 409) from None
 
 
 def select_models(name: str, available: list[dict], *, voice: bool = False) -> list[dict]:
@@ -35,6 +80,7 @@ def select_models(name: str, available: list[dict], *, voice: bool = False) -> l
 
 
 async def catalog(owner: str, name: str, refresh: bool = False) -> dict:
+    manifest()  # Cached account discovery never bypasses metadata freshness validation.
     async with sessions() as db:
         row = await db.scalar(
             select(Record).where(

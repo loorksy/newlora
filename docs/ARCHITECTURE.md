@@ -25,3 +25,13 @@ Retrieved pages and market/news text are untrusted data, never instructions. Too
 Model catalogs are refreshed server-side against official APIs and a versioned official-source capability manifest. Seven is a maximum target, never a reason to invent IDs or include deprecated models. Available counts and catalog verification timestamps are returned to the app.
 
 See the implementation status and validation ledger in `VALIDATION.md` for what has actually been exercised. A successful mock flow does not establish live brokerage, FCM or Android audio behavior.
+
+## Hardening additions
+
+Schema 0002 adds encrypted `runs.checkpoint`, `runs.purpose`, durable `operations`, owner-scoped `search_documents`, attachment references on messages, and usage pricing snapshots. Existing tables and provider adapters remain in place. PostgreSQL full-text search avoids a new external vector dependency. Scheduler maintenance backfills retrieval and queues bounded preference consolidation using the existing worker infrastructure.
+
+Uploads use the authenticated API and persistent artifact volume. A fixed-purpose subprocess parses user-selected files with CPU, address-space and wall-time limits. This is infrastructure parsing, not a model-accessible filesystem or execution tool. The Android system document picker grants access only to user-selected content URIs.
+
+RRULE scheduling is a small dateutil/ZoneInfo module. OANDA instrument metadata now travels with candle results, chart artifacts and the typed chart bridge; price precision comes from `displayPrecision`, with pip location retained. OANDA candle volume is an integer count of price updates, not exchange-traded units.
+
+Deployment remains API, worker, scheduler, notifier, voice broker, PostgreSQL, Redis, isolated browser/public-only egress, search and TLS edge. Drain workers before applying migrations to an existing deployment; back up DB, files and master encryption key. The mutation journal can adopt legacy Effect and creation-event results, but does not reconstruct a lost pre-upgrade model transcript.

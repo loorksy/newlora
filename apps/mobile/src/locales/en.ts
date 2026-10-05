@@ -1,4 +1,27 @@
 export default {
+  attachedFiles: 'Attached files',
+  schedule_has_no_future_occurrence:
+    'This schedule has no future occurrence. Choose a future start or end time.',
+
+  attach: 'Attach',
+  attachmentPreview: 'Image preview',
+  removeAttachment: 'Remove attachment',
+  uploading: 'Uploading',
+  attachment_invalid: 'Choose a valid image, PDF, text or CSV file under 8 MB.',
+  attachment_upload_failed:
+    'Upload failed. Your files are still selected; retry sending.',
+  attachment_type_unsupported: 'This file type is not supported.',
+  attachment_too_large: 'Files must be under 8 MB.',
+  tool_failed: 'Tool could not complete',
+  queued: 'Queued',
+  analyzing: 'Analyzing…',
+  waitingSubagents: 'Research agents are working…',
+  mayLeave:
+    'Your request is running on the server. You can close the app; enable notifications to hear when it finishes.',
+  memory_search: 'Searching previous research',
+  invalid_credential: 'The provider rejected this API key.',
+  provider_unavailable: 'Provider temporarily unavailable.',
+  catalog_verification_required: 'The server model catalog needs verification.',
   brand: 'Newlora',
   details: 'Details',
   tradeable: 'Tradeable at OANDA',

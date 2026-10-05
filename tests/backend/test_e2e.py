@@ -6,6 +6,7 @@ from datetime import timedelta
 from unittest.mock import AsyncMock
 
 import httpx
+import pytest
 from newlora import runtime
 from newlora.agent_tools import TradingTools
 from newlora.contracts import ModelSelection, Preferences
@@ -29,7 +30,8 @@ from newlora.security import encrypt
 from sqlalchemy import func, select
 
 
-async def test_arabic_analysis_recommendation_task_push(run_record, monkeypatch):
+@pytest.mark.parametrize("restart", [False, True], ids=["arabic", "worker-restart"])
+async def test_arabic_analysis_recommendation_task_push(run_record, monkeypatch, restart):
     seen_images = []
     steps = 0
 
@@ -138,7 +140,19 @@ async def test_arabic_analysis_recommendation_task_push(run_record, monkeypatch)
 
     def oanda_response(req):
         if req.url.path.endswith("/instruments"):
-            return httpx.Response(200, json={"instruments": [{"name": "XAU_USD", "type": "METAL"}]})
+            return httpx.Response(
+                200,
+                json={
+                    "instruments": [
+                        {
+                            "name": "XAU_USD",
+                            "type": "METAL",
+                            "displayPrecision": 3,
+                            "pipLocation": -2,
+                        }
+                    ]
+                },
+            )
         return httpx.Response(
             200,
             json={
@@ -168,6 +182,29 @@ async def test_arabic_analysis_recommendation_task_push(run_record, monkeypatch)
     monkeypatch.setattr(TradingTools, "browser", render)
     prefs = Preferences(main=ModelSelection(provider="openai", model="gpt-6.1-sol"))
     rt = runtime.Runtime(run_record, prefs)
+    if restart:
+
+        class Crash(BaseException):
+            pass
+
+        original_execute = rt.tools.execute
+
+        async def crash_after_recommendation(name, args):
+            result = await original_execute(name, args)
+            if name == "create_recommendation":
+                raise Crash()
+            return result
+
+        rt.tools.execute = crash_after_recommendation
+        with pytest.raises(Crash):
+            await rt.run("حلّل الذهب بصرياً وأنشئ توصية وتابعها كل نصف ساعة واتصل بي إذا تغيّر الوضع")
+        async with sessions() as db:
+            interrupted = await db.get(Run, run_record.id)
+            interrupted.lease_until = now() - timedelta(seconds=1)
+            await db.commit()
+        from newlora.jobs import claim
+
+        rt = runtime.Runtime(await claim(), prefs)
     answer = await rt.run("حلّل الذهب بصرياً وأنشئ توصية وتابعها كل نصف ساعة واتصل بي إذا تغيّر الوضع")
     assert "المتابعة" in answer and seen_images
     assert render.call_args.args[1]["drawings"][0]["kind"] == "horizontal"

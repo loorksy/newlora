@@ -1,36 +1,64 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
+import { request } from '../services/api';
 import { VoiceSession } from '../services/voice';
 import { useLocale } from '../i18n';
 import { Button, Label, Row, colors, styles } from './UI';
 export function CallView({
   incoming,
+  notificationId,
   sessionId,
   onClose,
 }: {
   incoming: boolean;
+  notificationId?: string;
   sessionId?: string;
   onClose: () => void;
 }) {
   const { t } = useLocale();
   const session = useRef(new VoiceSession());
+  const mounted = useRef(true);
   const [status, setStatus] = useState(incoming ? 'incoming' : 'calling');
   const [muted, setMuted] = useState(false);
   const [speaker, setSpeaker] = useState(false);
   const [error, setError] = useState('');
   const start = () => {
     session.current.stop();
+    const connection = new VoiceSession();
+    session.current = connection;
     setError('');
-    void session.current.start(setStatus, sessionId).catch(e => {
+    setMuted(false);
+    setSpeaker(false);
+    const connect = async () => {
+      if (notificationId) {
+        const state = await request<{ available: boolean }>(
+          '/notifications/' + notificationId,
+        );
+        if (!mounted.current || session.current !== connection) return;
+        if (!state.available) {
+          setStatus('ended');
+          return;
+        }
+      }
+      if (!mounted.current || session.current !== connection) return;
+      await connection.start(state => {
+        if (mounted.current && session.current === connection) setStatus(state);
+      }, sessionId);
+    };
+    void connect().catch(e => {
+      if (!mounted.current || session.current !== connection) return;
       setError(e.code || 'error');
       setStatus('reconnect');
       session.current.stop();
     });
   };
   useEffect(() => {
+    mounted.current = true;
     if (!incoming) start();
-    const s = session.current;
-    return () => s.stop();
+    return () => {
+      mounted.current = false;
+      session.current.stop();
+    };
   }, []);
   return (
     <View

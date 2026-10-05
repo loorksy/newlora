@@ -97,7 +97,13 @@ async def create_voice(owner: str, sdp: str | None = None, session_id: str | Non
                 transport={"type": "webrtc", "sdp": sdp},
             )
             data = result.model_dump(mode="json")
-            provider_id = data["session"]["id"]
+            provider_id = data.get("session", {}).get("id")
+            if (
+                not isinstance(provider_id, str)
+                or not provider_id
+                or not data.get("transport", {}).get("sdp")
+            ):
+                raise PublicError("voice_unavailable", 502)
             response = {
                 "mode": "live",
                 "id": voice.id,
@@ -207,6 +213,8 @@ async def voice_heartbeat(row):
 
 
 async def record_realtime_usage(row, response):
+    if not isinstance(getattr(response, "id", None), str) or not response.id:
+        return
     async with sessions() as db:
         current = await db.scalar(select(Record).where(Record.id == row.id).with_for_update())
         if not current or current.data.get("fence") != row.data["fence"]:

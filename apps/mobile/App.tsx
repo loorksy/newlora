@@ -1,3 +1,9 @@
+import { Attachments } from './src/components/Attachments';
+import {
+  pickAttachment,
+  uploadAttachment,
+  type SelectedFile,
+} from './src/services/attachments';
 import { RecommendationDetail } from './src/components/RecommendationDetail';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -61,9 +67,11 @@ type Message = {
   role: string;
   text: string;
   timestamp?: string;
+  attachmentIds?: string[];
 };
 type History = {
   activeRunId?: string | null;
+  activeRunStatus?: string;
   messages: Message[];
   resources: Resource[];
 };
@@ -96,6 +104,9 @@ function Application({
   const [password, setPassword] = useState('');
   const [screen, setScreen] = useState<Screen>('welcome');
   const [drawer, setDrawer] = useState(false);
+  const [files, setFiles] = useState<SelectedFile[]>([]);
+  const [runState, setRunState] = useState('');
+  const [leaveNotice, setLeaveNotice] = useState(false);
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -111,6 +122,7 @@ function Application({
   const [range, setRange] = useState('month');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [taskFocus, setTaskFocus] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [activity, setActivity] = useState<string[]>([]);
@@ -120,6 +132,7 @@ function Application({
     timeframe: string;
     artifactId: string;
   } | null>(null);
+  const [notificationId, setNotificationId] = useState<string | undefined>();
   const [callSession, setCallSession] = useState<string | undefined>();
   const [call, setCall] = useState<'outgoing' | 'incoming' | null>(null);
   const [detail, setDetail] = useState<Resource<Recommendation> | null>(null);
@@ -142,6 +155,8 @@ function Application({
     const h = await request<History>('/conversations/' + s);
     setMessages(h.messages);
     setRun(h.activeRunId || null);
+    if (h.activeRunId)
+      setRunState(h.activeRunStatus === 'queued' ? 'queued' : 'analyzing');
     setArtifacts(
       h.resources.filter(r => r.type === 'artifact') as Resource<Artifact>[],
     );
@@ -168,6 +183,8 @@ function Application({
     setScreen('chats');
     setRun(null);
     setActivity([]);
+    setRunState('');
+    setFiles([]);
     setChartContext(null);
     await loadHistory(s);
   };
@@ -186,23 +203,41 @@ function Application({
   useEffect(() => {
     if (!signed) return;
     const receiveCall = (url: string) => {
+      setNotificationId(
+        decodeURIComponent(url.split('/').pop()!.split('?')[0]),
+      );
       const match = url.match(/[?&]session=([^&]*)/);
       setCallSession(match?.[1] ? decodeURIComponent(match[1]) : undefined);
       setCall('incoming');
     };
-    const listener = Linking.addEventListener('url', ({ url }) => {
+    const handleLink = (url: string) => {
+      const resourceId = decodeURIComponent(
+        url.split('/').pop()!.split('?')[0],
+      );
       if (url.startsWith('newlora://call/')) receiveCall(url);
       else if (url.startsWith('newlora://chat/'))
-        void safe(() =>
-          openConversation(decodeURIComponent(url.split('/').pop()!)),
-        );
-    });
+        void safe(() => openConversation(resourceId));
+      else if (url.startsWith('newlora://recommendation/'))
+        void safe(async () => {
+          setDetail(
+            await request<Resource<Recommendation>>('/resource/' + resourceId),
+          );
+          setScreen('recommendations');
+        });
+      else if (url.startsWith('newlora://task/'))
+        void safe(async () => {
+          const items = await request<Task[]>('/tasks');
+          setTasks(items);
+          setTaskFocus(resourceId);
+          setFilter('all');
+          setScreen('tasks');
+        });
+    };
+    const listener = Linking.addEventListener('url', ({ url }) =>
+      handleLink(url),
+    );
     void Linking.getInitialURL().then(url => {
-      if (url?.startsWith('newlora://call/')) receiveCall(url);
-      if (url?.startsWith('newlora://chat/'))
-        void safe(() =>
-          openConversation(decodeURIComponent(url.split('/').pop()!)),
-        );
+      if (url) handleLink(url);
     });
     let off: (() => void) | undefined;
     try {
@@ -223,7 +258,15 @@ function Application({
       (e: EventEnvelope) => {
         if (e.event === 'agent.activity') {
           const a = e.payload;
-          const key = String(a.tool || a.type);
+          const key = String(
+            a.type === 'tool_failed' ? 'tool_failed' : a.tool || a.type,
+          );
+          if (a.type === 'subagent_spawned') setRunState('waitingSubagents');
+          else if (
+            a.type === 'agent_started' ||
+            a.type === 'subagent_completed'
+          )
+            setRunState('analyzing');
           const label =
             t(key) +
             (a.instrument ? ' · ' + isolate(String(a.instrument)) : '');
@@ -246,6 +289,7 @@ function Application({
             },
           );
         } else if (e.event.startsWith('run.')) {
+          setRunState(e.event.slice(4));
           setRun(null);
           setStream('');
           if (e.event === 'run.failed')
@@ -289,10 +333,17 @@ function Application({
     }
   };
   useEffect(() => {
-    if (signed && range !== 'custom') void safe(load);
+    if (
+      signed &&
+      range !== 'custom' &&
+      !(screen === 'chats' && session) &&
+      screen !== 'welcome' &&
+      screen !== 'settings'
+    )
+      void safe(load);
   }, [screen, session, signed, range]);
   const send = async (value = text) => {
-    if (!value.trim()) return;
+    if (!value.trim() && !files.length) return;
     let s = session;
     if (!s) {
       const row = await request<Resource>('/conversations', 'POST', {
@@ -302,21 +353,43 @@ function Application({
       setSession(s);
     }
     setScreen('chats');
+    const attachmentIds: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const aid =
+        file.id ||
+        (await uploadAttachment(s, file, percent =>
+          setFiles(prev =>
+            prev.map((f, index) =>
+              index === i ? { ...f, progress: percent } : f,
+            ),
+          ),
+        ));
+      file.id = aid;
+      attachmentIds.push(aid);
+    }
     const clientId = id();
     const result = await request<{ runId: string }>(
       '/conversations/' + s + '/messages',
       'POST',
-      { clientId, text: value },
+      { clientId, text: value, attachmentIds },
     );
     setRun(result.runId);
+    setRunState('queued');
+    setLeaveNotice(true);
+    setFiles([]);
     setText('');
     setActivity([]);
-    setMessages(prev => [...prev, { clientId, role: 'user', text: value }]);
+    setMessages(prev => [
+      ...prev,
+      { clientId, role: 'user', text: value, attachmentIds },
+    ]);
   };
   const navigate = (s: Screen) => {
     setScreen(s);
     setDrawer(false);
     setFilter('all');
+    setTaskFocus(null);
     if (s === 'welcome' || s === 'chats') {
       setSession(null);
       setMessages([]);
@@ -336,6 +409,16 @@ function Application({
   };
   const composer = (
     <Card style={{ padding: 12, borderRadius: 24 }}>
+      <Attachments
+        files={files}
+        disabled={busy}
+        remove={index => {
+          const file = files[index];
+          if (file.id)
+            void request('/attachments/' + file.id, 'DELETE').catch(() => {});
+          setFiles(previous => previous.filter((_, i) => i !== index));
+        }}
+      />
       <Input
         multiline
         accessibilityLabel={t('composer')}
@@ -352,8 +435,22 @@ function Application({
       <Row style={{ justifyContent: 'space-between' }}>
         <Button
           compact
+          label={t('attach')}
+          disabled={busy || files.length >= 4}
+          onPress={() => {
+            void safe(async () => {
+              const file = await pickAttachment();
+              if (file) setFiles(prev => [...prev, file].slice(0, 4));
+            });
+          }}
+        />
+        <Button
+          compact
           label={t('voice')}
-          onPress={() => setCall('outgoing')}
+          onPress={() => {
+            setNotificationId(undefined);
+            setCall('outgoing');
+          }}
         />
         {run ? (
           <Button
@@ -369,7 +466,7 @@ function Application({
           <Button
             primary
             label={t('send')}
-            disabled={!text.trim() || busy}
+            disabled={(!text.trim() && files.length === 0) || busy}
             onPress={() => {
               void safe(() => send());
             }}
@@ -562,6 +659,11 @@ function Application({
                     }}
                   >
                     <Label>{String(c.data.title || t('newChat'))}</Label>
+                    {typeof c.data.activityStatus === 'string' && (
+                      <Label style={styles.badge}>
+                        {t(c.data.activityStatus)}
+                      </Label>
+                    )}
                     <Label style={styles.muted}>
                       {new Date(c.updatedAt).toLocaleDateString(language)}
                     </Label>
@@ -626,8 +728,19 @@ function Application({
                     </Label>
                   )}
                   <Label selectable>{m.text}</Label>
+                  {!!m.attachmentIds?.length && (
+                    <Label style={styles.muted}>
+                      {t('attachedFiles')} · {m.attachmentIds.length}
+                    </Label>
+                  )}
                 </View>
               ))}
+              {runState !== '' && (
+                <Label style={styles.badge}>{t(runState)}</Label>
+              )}
+              {leaveNotice && run && (
+                <Label style={styles.muted}>{t('mayLeave')}</Label>
+              )}
               {stream !== '' && <Label>{stream}</Label>}
               {activity.length > 0 && run && (
                 <Card style={{ padding: 14 }}>
@@ -676,7 +789,10 @@ function Application({
                       key={f}
                       label={t(f)}
                       primary={filter === f}
-                      onPress={() => setFilter(f)}
+                      onPress={() => {
+                        setTaskFocus(null);
+                        setFilter(f);
+                      }}
                     />
                   ))}
                 </Row>
@@ -708,7 +824,10 @@ function Application({
                       key={f}
                       label={t(f)}
                       primary={filter === f}
-                      onPress={() => setFilter(f)}
+                      onPress={() => {
+                        setTaskFocus(null);
+                        setFilter(f);
+                      }}
                     />
                   ))}
                 </Row>
@@ -717,7 +836,11 @@ function Application({
                 <Label style={styles.muted}>{t('emptyTasks')}</Label>
               )}
               {tasks
-                .filter(task => filter === 'all' || task.status === filter)
+                .filter(
+                  task =>
+                    (!taskFocus || task.id === taskFocus) &&
+                    (filter === 'all' || task.status === filter),
+                )
                 .map(task => (
                   <Card key={task.id}>
                     <Row style={{ justifyContent: 'space-between' }}>
@@ -1022,6 +1145,7 @@ function Application({
       >
         {call && (
           <CallView
+            notificationId={notificationId}
             incoming={call === 'incoming'}
             sessionId={call === 'incoming' ? callSession : session || undefined}
             onClose={() => setCall(null)}

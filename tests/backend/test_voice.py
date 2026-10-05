@@ -20,7 +20,7 @@ def sdk(monkeypatch, model):
     )
     client = MagicMock()
     client.__aenter__ = AsyncMock(return_value=client)
-    client.__aexit__ = AsyncMock()
+    client.__aexit__ = AsyncMock(return_value=False)
     monkeypatch.setattr("newlora.voice.AsyncOpenAI", lambda **kwargs: client)
     return client
 
@@ -111,3 +111,54 @@ async def test_realtime_usage_is_provider_sourced_and_idempotent(monkeypatch):
         rows = (await db.scalars(select(Usage))).all()
         assert len(rows) == 1 and rows[0].total_tokens == 150
         assert rows[0].cost is None and rows[0].cached_input_tokens == 20
+
+
+async def test_live_rejects_missing_provider_session_identity(monkeypatch):
+    client = sdk(monkeypatch, "gpt-live-1")
+    result = MagicMock()
+    result.model_dump.return_value = {"session": {}, "transport": {"sdp": "answer"}}
+    client.live.create = AsyncMock(return_value=result)
+    with pytest.raises(PublicError, match="voice_unavailable"):
+        await create_voice("owner", "offer")
+
+
+async def test_voice_cancellation_is_owned_idempotent_and_blocks_research(monkeypatch, run_record):
+    from test_api import client as api_client
+
+    async with sessions() as db:
+        row = Record(
+            owner="owner",
+            kind="voice",
+            session_id=run_record.session_id,
+            data={"status": "connected", "fence": "old"},
+        )
+        foreign = Record(owner="other", kind="voice", data={"status": "connected"})
+        db.add_all([row, foreign])
+        await db.commit()
+    async with await api_client(monkeypatch) as c:
+        assert (await c.post("/voice/" + foreign.id + "/stop")).status_code == 404
+        assert (await c.post("/voice/" + row.id + "/stop")).status_code == 200
+        assert (await c.post("/voice/" + row.id + "/stop")).status_code == 200
+        result = await c.post(
+            "/voice/" + row.id + "/research", json={"callId": "event", "objective": "gold"}
+        )
+        assert result.status_code == 409
+
+
+async def test_missing_response_id_and_stale_voice_fence_cannot_record_usage():
+    from newlora.voice import record_realtime_usage
+
+    async with sessions() as db:
+        row = Record(
+            owner="owner", kind="voice", data={"fence": "lease", "model": "gpt-realtime-2.1"}
+        )
+        db.add(row)
+        await db.commit()
+    await record_realtime_usage(row, NS(id=None))
+    async with sessions() as db:
+        current = await db.get(Record, row.id)
+        current.data = {**current.data, "fence": "replacement"}
+        await db.commit()
+    await record_realtime_usage(row, NS(id="provider-response"))
+    async with sessions() as db:
+        assert not (await db.scalars(select(Usage))).all()

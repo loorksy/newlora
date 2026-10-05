@@ -1,59 +1,95 @@
 # Implementation and validation ledger
 
-Checked 2026-10-04. This is an independent implementation, with real persistence and native build outputs. It is **not yet certified against the complete live-device/VPS acceptance flow**. No OANDA account, LLM API key, Firebase project, production signing identity, public domain or target VPS credentials were supplied for live acceptance. Production UI has no demonstration prices, recommendations or costs.
+Hardening checked 2026-10-05 against the independent Newlora alpha. PR #1 must remain **Draft**. No real OANDA account, LLM credential, Firebase project, production signing identity, public domain, or target VPS was available. Local validation is not production certification.
 
-## Executed checks
+## Automated checks
 
-| Check | Result and scope |
+| Check | Observed result |
 |---|---|
-| Python lint/format | Ruff passes |
-| Python types | mypy passes on all 20 API modules |
-| Backend suite | 42 tests pass with SQLite and PostgreSQL 17 |
-| Official SDK adapters | Mocked OpenAI/Anthropic/Z.AI clients exercise public text, tools, images, usage and private-field exclusion |
-| Voice authorization | Mocked official Live, Realtime client-secret and Realtime SDP-broker APIs; ownership, secret exclusion and trusted usage deduplication |
-| PostgreSQL persistence | All 42 tests pass against PostgreSQL 17; restart/fencing tests use actual PostgreSQL row locks |
-| Arabic mocked E2E | Structured intent → OANDA HTTP normalization → rendered-image fixture → multimodal input → recommendation → persistent monitoring → outbox/push simulation |
-| Restart behavior | Expired leases, stale fencing, serialized conversation claims, occurrence/effect idempotency, fenced memory writes, concurrent fact creation and original-history preservation tested |
-| TypeScript | Type checks and ESLint pass |
-| Mobile components | 9 Jest tests cover Arabic/English direction, drawer, Welcome chart exclusion, chat events, optional recommendation fields, selection artifacts, settings and bridge rejection |
-| Chart bridge | 2 Vitest tests pass |
-| Real chart renderer | Chromium runs the built KLineChart Pro bundle, renders Arabic labels and deterministic annotations, and creates actual PNG pixels |
-| Android | Final arm64-v8a preview APK including native Save/Share built successfully; APK signature verified |
-| Docker images | API and browser production Dockerfiles build successfully |
-| Docker services | Fresh Alembic migration, API auth/settings/Arabic conversation/queue, worker, scheduler, notifier and voice heartbeat startup passed against actual PostgreSQL/Redis |
-| Browser container | Authenticated high-resolution PNG render passes with non-root Chromium sandbox, read-only root filesystem, no-new-privileges and all capabilities dropped; loopback browsing is blocked by the public-only proxy |
+| Ruff lint / format | Pass |
+| mypy | Pass, 29 API modules |
+| Backend on SQLite | 100 tests pass |
+| Backend on PostgreSQL 17 | The same 100 tests pass using actual PostgreSQL transactions/indexes/locks |
+| ESLint / TypeScript | Pass across mobile, contracts and chart |
+| Mobile Jest | 30 tests pass |
+| Chart Vitest | 15 tests pass |
+| Chart production bundle | Vite/TypeScript build passes |
 
-The image fixtures used by tests are not production responses. The actual browser PNG smoke test is separate from the mocked Arabic provider flow. No paid provider calls are part of CI.
+There are **145 unique passing cases**, 92 more than the baseline's 53. PostgreSQL and SQLite execution do not count as separate unique tests. [Exact test inventory](TEST_INVENTORY.md) lists names and the complete backend collection. Tests retain existing provider/runtime/security coverage and add retrieval, journal recovery, attachments, recurrence/DST, precision, catalog/probes/pricing, notifications, voice and mobile behavior.
 
-## Remaining live acceptance
+### Mocked provider tests
 
-1. Deploy Compose on the intended VPS with a DNS name, TLS, persistent volumes and a tested backup/restore process. Confirm `/health/ready` and restart all services without losing records.
-2. Install the signed APK on a physical Android device. Configure real OANDA and at least one LLM provider through Settings. Verify the account model catalog and instrument availability, including regional metals support.
-3. Analyze an instrument in Arabic and English with a vision-capable model. Inspect current prices/tradeability, selected timeframes, chart annotations, source links, optional recommendation values and recorded usage. Exercise each provider's multi-turn tool behavior and error recovery.
-4. Create a user-defined monitoring/news task. Close the phone app, restart the worker, and verify the task runs and FCM delivers a matching notification. Test normal, urgent and incoming-call policies without adding universal market thresholds.
-5. Test GPT-Live and Realtime speech, barge-in, Arabic/English switching, tool delegation, mute, speaker/Bluetooth, reconnect and accepted urgent calls. Compare sideband usage with provider billing. Test Android notification/full-screen permission fallbacks.
-6. Inspect mixed Arabic/Latin typography, keyboard behavior, accessibility scaling, chart interactions, Save/Share and offline/reconnect behavior on physical devices.
+OpenAI, Anthropic and Z.AI tests mock their official SDK clients. The Arabic E2E and additional `worker-restart` E2E exercise intent → OANDA HTTP normalization → chart-image fixture → multimodal input → recommendation → task → replacement worker → simulated push. They do not establish live market correctness, provider access, or FCM delivery. Voice authorization, provider events, research delegation and usage dedupe are mocked; no microphone/WebRTC media was exercised by Jest.
 
-## Deliberate boundaries and current limitations
+## Local infrastructure and builds
 
-- Single-owner VPS deployment, not multi-tenant account registration. OANDA has no automatic order-execution capability.
-- Charts load a bounded OANDA snapshot and refresh while visible. Deep scrolling beyond that snapshot is not implemented; historical research can explicitly request bounded date ranges through the agent.
-- File/image attachments as user inputs, editable spreadsheet cells, iOS delivery and a light theme are not implemented. Chart-image Save/Share targets Android.
-- Catalogs only expose officially documented, suitable IDs. An account can show fewer than seven verified models. Anthropic's documentation endpoint returned HTTP 403 during inspection; official SDK model types and the account listing are used, with that provenance recorded.
-- Public browser interactions are bounded and per-request; no general host shell or arbitrary computer filesystem is available. Public web/search access depends on the VPS network and configured SearXNG engines.
-- Prices/costs are never fabricated. The pricing manifest has no unverified rates, so monetary cost remains unknown. GPT-Live audio seconds and Realtime response tokens use authenticated server events. The optional client-secret-only voice fallback cannot authoritatively meter media tokens and leaves them unknown.
-- External LLM calls and push delivery cannot promise exactly-once behavior across a crash. Stored effects use durable keys and leases; a nondeterministic replan that changes mutation arguments can still require duplicate reconciliation. No live reliability/SLA or independent security audit is claimed.
+- Both production Dockerfiles built successfully during this pass. The API image contains the new dependency lock and schema migration; the browser image contains instrument metadata support. Small subsequent runtime safeguards and the metadata declaration for the GIN index were verified through source tests and migration comparison; see final build notes below for exact artifact scope.
+- Compose configuration validates. Fresh PostgreSQL/Redis volumes and Alembic migration to `0002_hardening` passed. The metadata consistency check reports `No new upgrade operations detected` with the final GIN index declaration.
+- Real container API smoke passed authentication, Arabic conversation persistence, authenticated CSV upload and attachment/message linkage. Secret validation errors did not echo submitted values.
+- Worker, scheduler, notifier and voice processes started and emitted Redis health heartbeats. They were tested as separate processes inside the API container after the full stack hit the workspace limit; this is not a successful full-topology startup claim.
+- A real process terminated with `os._exit(27)` immediately after task commit and before the tool-result checkpoint. A separate replacement process acquired the expired run, resumed, and found exactly one recommendation and one recurring task. Two separate scheduler processes produced exactly one occurrence. Providers in this smoke were mocked; storage was real PostgreSQL.
+- Local Chromium rendered the production chart bundle with Arabic labels and drawings. The browser Docker container separately returned a real high-resolution annotated PNG, with precision metadata, non-root Chromium sandbox, read-only root filesystem, dropped capabilities and no-new-privileges. Unauthenticated render returned 401; malformed input returned a public code without submitted data.
+- SSRF/private-address/proxy behavior is covered by automated tests. A successful live public-page fetch through the production proxy is still an acceptance item. Do not mistake a stopped proxy or connection failure for proof of SSRF protection.
+- Full concurrent Compose startup was attempted and failed with `no space left on device` in this **32 GB workspace using Docker's vfs driver**. Temporary containers were removed and browser validation ran sequentially. No production isolation setting was weakened to fit this environment. Full-stack startup/restart must be repeated on the target VPS with adequate storage.
 
-See README for exact commands and CI workflows. Generated APKs, screenshots, credentials and test databases are excluded from Git.
+### Android artifact
 
-## Evaluation APK
+Native Android attachment selection and the complete JavaScript bundle build with JDK 17, Android SDK 36, React Native 0.81.5 and `:app:assemblePreview -PreactNativeArchitectures=arm64-v8a`. The preview uses a development signing identity; it is not a production-signed release. Output is `apps/mobile/android/app/build/outputs/apk/preview/app-preview.apk`; generated binaries remain outside Git. Final build/hash recorded below after validation.
 
-Built with JDK 17 / Android SDK 36 / React Native 0.81.5, using `assemblePreview -PreactNativeArchitectures=arm64-v8a`. It includes the JavaScript bundle and uses the development signing identity.
+## Live acceptance checklist — not yet executed
 
-SHA-256: `76984b3a2156b40858953b6498f168c56ee994fc3d2d846ac80d12e8486126a6`. Local output: `apps/mobile/android/app/build/outputs/apk/preview/app-preview.apk`. The Android workflow uploads CI builds as artifacts; hashes differ when build inputs/environment differ.
+Record device/VPS versions, provider/model IDs, timestamps, screenshots and results for each item. Keep credentials out of evidence.
 
-## GitHub checks
+### Deployment and recovery
 
-The first remote CI and Android workflow runs were rejected before any steps started. GitHub annotation: “The job was not started because your account is locked due to a billing issue.” Runs: https://github.com/loorksy/newlora/actions/runs/37205105794 and https://github.com/loorksy/newlora/actions/runs/37205105792 . Local test/build results above remain valid; remote CI is not passing and must be rerun after the account issue is resolved.
+- [ ] Deploy the complete production Compose topology on the intended VPS; check every service's health and resource limits.
+- [ ] Configure DNS and TLS; verify Android rejects HTTP and invalid certificates.
+- [ ] Back up PostgreSQL, encrypted artifact files and the master key separately; restore to a clean instance and verify chats, attachments, memory revisions, journals, tasks and usage.
+- [ ] Restart Redis; verify it loses no durable records and workers recover coordination.
+- [ ] Restart API and worker during tool execution and after mutation commit; assert one recommendation/task/outbox record and a resumed answer.
+- [ ] Restart scheduler immediately before a timezone recurrence; verify one scheduled occurrence, including DST cases.
+- [ ] Restart notifier with a pending push, then cancel its task; verify suppression before handoff and stable device dedupe after retries.
+- [ ] Restart browser during chart rendering; verify safe retry/error, healthy sandbox, public URL success and loopback/private/metadata-IP denial.
+- [ ] Restart voice worker during a call; inspect recovery and usage dedupe.
 
-The GitHub release-upload endpoint returned HTTP 400 `Bad Content-Length`, including for a small checksum file. The empty draft release was removed; no APK is hosted on GitHub by this session. The verified local APK and build workflow are retained.
+### Providers and market research
+
+- [ ] Configure a real OANDA Practice account; verify account-visible Forex/metals and unsupported instruments.
+- [ ] Test real OpenAI, Anthropic and Z.AI keys separately: valid, invalid, unavailable model, rate-limited/provider unavailable.
+- [ ] Refresh model catalogs; verify official account listing intersections, documented capabilities, provenance and fewer-than-seven behavior.
+- [ ] Request real `XAU_USD` analysis in Arabic and English. Compare actual OANDA bid/ask, timestamps, candles, tradeability and session metadata with source responses.
+- [ ] Render chosen timeframes; inspect actual chart pixels and final annotations through a vision-capable provider. Confirm gold, JPY and standard FX precision.
+- [ ] Create a recommendation with only justified optional values; verify its revisions, cross-chat historical comparison and source links.
+- [ ] Create a monitoring task and a local-time recurring task; close/kill Android, wait for a real condition, and verify the VPS continues.
+- [ ] Upload a gallery chart image, PDF, plain text and CSV; verify bounded extraction, provider image input, ownership and conversation deletion cleanup.
+- [ ] Confirm explicit user preference correction survives consolidation and restart without promoting inferred identity or transient prices.
+- [ ] Compare recorded text/voice usage with provider records; unknown cost stays null, known fixture pricing retains its version. Do not introduce unverified live rates.
+
+### Physical Android, notifications and voice
+
+- [ ] Install the arm64 APK on a physical Android device; separately test another supported ABI if distributing one.
+- [ ] Exercise Arabic RTL and English LTR: drawer, mixed symbols/prices/model IDs, keyboard, attachments, tables, font scaling and accessibility.
+- [ ] Test HTTPS reconnect, replayed chat events, duplicate events, queued/analyzing/waiting/completed/failed/cancelled states, and leaving the app during research.
+- [ ] Configure FCM/Notifee permissions/channels. Verify normal and urgent notifications in foreground, background and killed app.
+- [ ] Verify exact chat/task/recommendation deep links, duplicate delivery suppression, generic lock-screen copy and task cancellation while push is pending.
+- [ ] Request an incoming **in-app AI call** from a user-defined monitoring condition; test accept, decline, expired/cancelled calls and Android full-screen permission fallbacks. No PSTN call is involved.
+- [ ] Test real GPT-Live and Realtime WebRTC audio, Arabic/English switching, barge-in, mute, speaker, Bluetooth and microphone permission denial.
+- [ ] Disconnect/reconnect media; verify a fresh authorized session, closed-call rejection, research failure UX, duplicate server event handling and usage dedupe.
+
+## Boundaries and known limitations
+
+- Single-owner VPS scope, no automatic order execution, no fixed analysis/risk strategy. No live reliability/SLA or independent security audit is claimed.
+- Cross-chat retrieval uses PostgreSQL lexical full-text plus metadata, not embeddings. Cross-language retrieval may need query translation or canonical instrument filters. Automatic canonical consolidation currently promotes evidenced language/report-format/report-detail preferences; broader research remains indexed rather than becoming identity facts.
+- Journal creation identity is one recommendation/task per structured subject per run. Changed wording cannot duplicate that creation. Multiple independent creations for the same subject in one run currently collapse; separate user requests have separate identities. Updates/artifacts use persisted tool-call slots. This limitation must be considered before claiming unrestricted multi-plan creation.
+- Durable checkpoints resume committed tools/answers. External provider requests, ephemeral browser actions and subagent research can still repeat after a crash; no external exactly-once guarantee is made.
+- Attachments support PNG/JPEG/WebP, bounded text-based PDF, UTF-8 text and CSV. Parsing runs in a resource-limited subprocess, not a separate OS/container sandbox. Scanned PDFs need OCR that is not implemented. Camera capture, offline attachment drafts and broader office formats are not included. Unsent uploaded files remain until removed or their conversation is deleted.
+- RRULE uses explicit IANA timezone/start. Spring gaps skip; fall folds run once. Downtime coalesces missed occurrences. Holiday/session interpretation requires task-specific context and separate OANDA tradeability checks.
+- Android notification receipt dedupe is persisted before display, so a crash in that narrow window can suppress the visual alert; the underlying result remains durable in chat. FCM handoff cannot be recalled. Real manufacturer background restrictions need device testing.
+- The pricing registry intentionally has no uncertain production rates. Audio seconds/tokens remain unknown when authoritative provider events are missing; unknown is never zero.
+- Charts show bounded OANDA snapshots; deep historical scrolling, editable spreadsheet cells, iOS delivery and a light theme remain outside this pass.
+
+## GitHub validation
+
+Local results above are independent of GitHub Actions. Earlier remote runs were blocked before execution with: **“The job was not started because your account is locked due to a billing issue.”** Baseline reruns include https://github.com/loorksy/newlora/actions/runs/37224713851 . Refresh the exact head-run status after pushing; do not mark CI passing unless jobs execute successfully.
+
+Earlier release uploads returned HTTP 400 `Bad Content-Length`; the empty draft release was deleted. No fake GitHub Release is created and no binary is committed. Keep PR #1 Draft until the live checklist passes.

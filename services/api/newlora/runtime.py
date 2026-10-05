@@ -4,18 +4,18 @@ import time
 from contextlib import suppress
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from . import memory
 from .agent_tools import READ_TOOLS, SPECS, TradingTools, schemas
 from .catalog import validate_selection
 from .config import settings
-from .contracts import Intent, Preferences
+from .contracts import ActivityEvent, Intent, Preferences
 from .db import Event, Message, Record, Run, Usage, now, sessions, uid
-from .events import emit
+from .events import envelope
 from .providers import provider
 from .providers.base import assistant_message, public_text
-from .security import PublicError, credential
+from .security import PublicError, credential, decrypt, encrypt
 
 log = structlog.get_logger()
 SYSTEM = """You are Newlora, a persistent Forex and metals research assistant. Respond naturally in the user's language (Arabic or English). Use real tools for current facts. You have read-only OANDA data, rendered charts you can see and annotate, web research, optional scoped subagents, artifacts, recommendations and persistent tasks. Choose tools/timeframes/analysis methods dynamically. Never impose a fixed strategy, thresholds, risk sizing, indicator checklist or mandatory recommendation values. Never fabricate data, sources, activity or metrics. Label stale or historical data using tool timestamps. Forex session hours do not prove an instrument is tradeable; use pricing.
@@ -32,10 +32,25 @@ class Runtime:
         self.selection = selection or preferences.main
         self.agent_type = agent_type
         self.allowed = allowed
+        self.operation_slot: str | None = None
         self.subslots = asyncio.Semaphore(settings().max_subagents)
         self.tools = TradingTools(self)
 
     async def fence_transaction(self, db):
+        # A conditional write acquires a DB write lock even on SQLite (FOR UPDATE is ignored there).
+        locked = await db.execute(
+            update(Run)
+            .where(
+                Run.id == self.run_id,
+                Run.fence == self.fence,
+                Run.status == "running",
+                Run.cancel_requested.is_(False),
+                Run.lease_until > now(),
+            )
+            .values(fence=self.fence)
+        )
+        if not locked.rowcount:
+            raise PublicError("run_interrupted", 409)
         run = await db.scalar(select(Run).where(Run.id == self.run_id).with_for_update())
         if (
             not run
@@ -53,8 +68,20 @@ class Runtime:
             await self.fence_transaction(db)
 
     async def publish(self, event, payload):
-        await self.check_fence()
-        return await emit(self.owner, self.session_id, self.run_id, event, payload)
+        if event == "agent.activity":
+            payload = ActivityEvent.model_validate(payload).model_dump(exclude_none=True)
+        async with sessions() as db:
+            await self.fence_transaction(db)
+            row = Event(
+                owner=self.owner,
+                session_id=self.session_id,
+                run_id=self.run_id,
+                event=event,
+                payload=payload,
+            )
+            db.add(row)
+            await db.commit()
+            return envelope(row)
 
     async def activity(self, kind, **kwargs):
         await self.publish("agent.activity", {"type": kind, **kwargs})
@@ -108,6 +135,9 @@ class Runtime:
                             reply.first_token_ms,
                         )
                         row.request_id = reply.request_id
+                        from .pricing import apply_price
+
+                        apply_price(row)
                     await db.commit()
             finally:
                 await adapter.close()
@@ -134,65 +164,97 @@ class Runtime:
             raise PublicError("intent_routing_failed", 502)
         return Intent.model_validate(reply.calls[0].arguments)
 
+    async def save_checkpoint(self, messages: list[dict], step: int, answer=None):
+        if self.agent_type != "main":
+            return
+        async with sessions() as db:
+            run = await self.fence_transaction(db)
+            run.checkpoint = encrypt({"messages": messages, "step": step, "answer": answer})
+            await db.commit()
+
     async def loop(self, messages: list[dict], names: set[str] | None = None) -> str:
-        names = names if names is not None else set(SPECS)
+        names = set(names) if names is not None else set(SPECS)
         if not self.task_id:
             names.discard("task_outcome")
         else:
             names -= {"create_task", "manage_task"}
-        for _ in range(settings().max_agent_steps):
+        step = 0
+        if self.agent_type == "main":
+            async with sessions() as db:
+                run = await self.fence_transaction(db)
+                if run.checkpoint:
+                    state = decrypt(run.checkpoint)
+                    messages, step = state["messages"], state["step"]
+                    if state.get("answer") is not None:
+                        return state["answer"]
+        while step < settings().max_agent_steps:
             await self.check_fence()
-
-            async def public_delta(value):
-                await self.publish("chat.delta", {"text": value})
-
-            if self.agent_type == "main":
-                await self.publish("chat.stream.started", {})
-            reply = await self.call(
-                messages,
-                schemas(names),
-                on_delta=public_delta if self.agent_type == "main" else None,
+            # Finish the persisted assistant turn before asking the model to plan again.
+            last_assistant: dict = next(
+                (m for m in reversed(messages) if m["role"] == "assistant"), {}
             )
-            messages.append(assistant_message(reply))
-            if not reply.calls:
-                return public_text(reply.text)
-            for call in reply.calls:
+            completed = {m.get("call_id") for m in messages if m["role"] == "tool"}
+            pending = [c for c in last_assistant.get("calls", []) if c["id"] not in completed]
+            if not pending:
+
+                async def public_delta(value):
+                    await self.publish("chat.delta", {"text": value})
+
+                if self.agent_type == "main":
+                    await self.publish("chat.stream.started", {})
+                reply = await self.call(
+                    messages,
+                    schemas(names),
+                    on_delta=public_delta if self.agent_type == "main" else None,
+                )
+                message = assistant_message(reply)
+                message["content"] = public_text(message["content"])
+                messages.append(message)
+                step += 1
+                answer = public_text(reply.text) if not reply.calls else None
+                await self.save_checkpoint(messages, step, answer)
+                if answer is not None:
+                    return answer
+                pending = message["calls"]
+            for call in pending:
                 await self.check_fence()
-                if call.name not in names:
-                    result: dict = {"error": "tool_not_allowed"}
-                else:
-                    await self.activity("tool_started", tool=call.name)
-                    started = time.monotonic()
-                    try:
-                        result = await self.tools.execute(call.name, call.arguments)
-                    except PublicError as exc:
-                        if exc.code == "run_interrupted":
-                            raise
-                        result = {"error": exc.code}
-                    except (ValueError, TypeError):
-                        result = {"error": "invalid_tool_arguments"}
-                    except Exception:
-                        result = {"error": "tool_temporarily_unavailable"}
-                    log.info(
-                        "tool_complete",
-                        run_id=self.run_id,
-                        session_id=self.session_id,
-                        task_id=self.task_id,
-                        tool=call.name,
-                        duration_ms=(time.monotonic() - started) * 1000,
-                        success="error" not in result,
+                name = call["name"]
+                self.operation_slot = call["id"]
+                public_name = name if name in SPECS else "unknown_tool"
+                await self.activity("tool_started", tool=public_name)
+                started = time.monotonic()
+                try:
+                    result = (
+                        await self.tools.execute(name, call["arguments"])
+                        if name in names
+                        else {"error": "tool_not_allowed"}
                     )
-                    await self.activity("tool_completed", tool=call.name)
+                except PublicError as exc:
+                    if exc.code == "run_interrupted":
+                        raise
+                    result = {"error": exc.code}
+                except (ValueError, TypeError):
+                    result = {"error": "invalid_tool_arguments"}
+                except Exception:
+                    result = {"error": "tool_temporarily_unavailable"}
+                log.info(
+                    "tool_complete",
+                    run_id=self.run_id,
+                    tool=public_name,
+                    duration_ms=(time.monotonic() - started) * 1000,
+                    success="error" not in result,
+                )
                 images = result.pop("_images", [])
                 encoded = json.dumps(result, ensure_ascii=False, default=str)
                 if len(encoded) > 80000:
-                    encoded = json.dumps(
-                        {
-                            "error": "result_too_large",
-                            "suggestion": "Request fewer candles or a smaller artifact.",
-                        }
-                    )
-                messages.append({"role": "tool", "call_id": call.id, "content": encoded})
+                    result = {"error": "result_too_large"}
+                    encoded = json.dumps(result)
+                await self.activity(
+                    "tool_failed" if "error" in result else "tool_completed",
+                    tool=public_name,
+                    **({"code": result["error"]} if "error" in result else {}),
+                )
+                messages.append({"role": "tool", "call_id": call["id"], "content": encoded})
                 if images:
                     messages.append(
                         {
@@ -201,6 +263,7 @@ class Runtime:
                             "images": images,
                         }
                     )
+                await self.save_checkpoint(messages, step)
         raise PublicError("agent_step_limit", 409)
 
     async def run(self, objective: str):
@@ -208,8 +271,18 @@ class Runtime:
             raise PublicError("model_not_configured", 409)
         await validate_selection(self.owner, self.selection)
         await self.activity("agent_started")
+        async with sessions() as db:
+            saved = (await self.fence_transaction(db)).checkpoint
+        if saved:
+            answer = await self.loop([])
+            return await self.finish(answer)
         await memory.compact(self.owner, self.session_id, self.call, self.fence_transaction)
         context = await memory.context(self.owner, self.session_id)
+        if any(m.get("images") for m in context):
+            from .catalog import capability
+
+            if not capability(self.selection.provider, self.selection.model)["vision"]:
+                raise PublicError("selected_model_has_no_vision")
         intent = await self.route(objective, context)
         await self.activity(
             "intent_detected", instrument=intent.instrument, timeframe=intent.timeframe
@@ -227,6 +300,9 @@ class Runtime:
         if not messages or messages[-1].get("content") != objective:
             messages.append({"role": "user", "content": objective})
         answer = await self.loop(messages)
+        return await self.finish(answer)
+
+    async def finish(self, answer):
         if self.task_id:
             async with sessions() as db:
                 events = (

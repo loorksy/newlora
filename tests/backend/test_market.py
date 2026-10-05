@@ -53,3 +53,50 @@ async def test_account_supported_instruments_only():
     with pytest.raises(PublicError):
         await market.require("BTC_USD")
     await market.close()
+
+
+@pytest.mark.parametrize(
+    "instrument,precision,pip",
+    [
+        ("XAU_USD", 3, -2),
+        ("USD_JPY", 3, -2),
+        ("EUR_USD", 5, -4),
+        ("XAG_USD", 5, -4),
+        ("XPT_USD", 2, -1),
+    ],
+)
+async def test_candles_carry_account_precision_metadata(instrument, precision, pip):
+    from newlora.market import MarketRequest
+
+    def response(req):
+        if req.url.path.endswith("/instruments"):
+            return httpx.Response(
+                200,
+                json={
+                    "instruments": [
+                        {
+                            "name": instrument,
+                            "type": "CURRENCY",
+                            "displayPrecision": precision,
+                            "pipLocation": pip,
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(200, json={"candles": []})
+
+    market = Oanda(
+        "key",
+        "account",
+        client=httpx.AsyncClient(
+            base_url="https://api-fxpractice.oanda.com/v3", transport=httpx.MockTransport(response)
+        ),
+    )
+    result = await market.candles(MarketRequest(instrument=instrument))
+    assert result["metadata"] == {
+        "pricePrecision": precision,
+        "pipLocation": pip,
+        "volumePrecision": 0,
+        "volumeUnit": "price_updates",
+    }
+    await market.close()

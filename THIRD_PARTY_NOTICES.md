@@ -11,6 +11,8 @@ Newlora is independently implemented. It is not a nanobot fork and does not depe
 | React Native community template | 0.81.5 | MIT | Android/iOS native build scaffold generated with official community CLI |
 | OpenAI Python | 3.24.0 | Apache-2.0 | Official provider SDK, Responses, GPT-Live and Realtime |
 | Anthropic Python | 1.11.0 | MIT | Official provider SDK |
+| pypdf | 6.19.0 | BSD-3-Clause | Bounded PDF text extraction in a resource-limited subprocess |
+| python-dateutil | 2.9.0.post0 | Dual Apache-2.0 / BSD-3-Clause | iCalendar recurrence expansion |
 | Z.AI Python | zai-sdk 0.2.3 | MIT | Official provider SDK, import `zai` |
 
 The complete verified upstream nanobot, KLineChart Pro, and Lobe Icons license texts are retained in `docs/licenses/`. Dependency distributions retain their own licenses. `uv.lock`, `requirements.lock`, and `package-lock.json` enumerate resolved dependencies. Vendor trademarks belong to their respective owners. No affiliation is implied.

@@ -81,6 +81,6 @@ class ChartFiles(context: ReactApplicationContext) : ReactContextBaseJavaModule(
 }
 
 class ChartFilesPackage : ReactPackage {
-    override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> = listOf(ChartFiles(context))
+    override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> = listOf(ChartFiles(context), Attachments(context))
     override fun createViewManagers(context: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()
 }

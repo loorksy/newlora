@@ -11,3 +11,11 @@ The native client requests microphone permission, provides mute/speaker/end cont
 GPT-Live audio seconds come from authenticated sideband usage events. Token values/cost remain unknown where the provider does not report them. Realtime response usage is recorded from the authenticated sideband with provider response-ID deduplication; mobile-reported counters are never accepted as financial accounting. The optional client-secret-only fallback cannot provide authoritative media usage and leaves counters unknown.
 
 Live Arabic/English speech, Bluetooth routes, Android background restrictions, interruption, FCM acceptance and provider account permissions require real-device/account validation. Mock tests and an APK build cannot certify these behaviors.
+
+## Hardening and acceptance boundary
+
+Stopping a call now closes its authenticated backend record and changes its fence, preventing a stale broker from recording subsequent events. Closed records reject mobile research requests; request deduplication includes voice-session identity. Missing provider/session/response IDs fail safely or leave usage unrecorded rather than inventing identifiers. Mobile deduplicates Realtime research events, stops microphone/peer resources on cancellation and reconnects with a fresh session object. Incoming notification availability is checked before starting audio.
+
+Automated tests mock official SDKs and native WebRTC. They cover ownership, malformed IDs, cancellation, duplicate usage/events, research failure and disconnect/reconnect UI state. They do not certify actual bidirectional audio, Bluetooth routing, echo behavior, Arabic/English barge-in, killed-app delivery or provider reconnect behavior. Those require a physical Android device, Firebase and real OpenAI access using the checklist in VALIDATION.md. Calls remain in-app AI calls, never PSTN/cellular calls.
+
+Call-screen cleanup follows the current connection after reconnect. Closing during incoming-call authorization prevents media startup, and stale callbacks cannot change a replacement session’s UI. Jest component tests cover both races.

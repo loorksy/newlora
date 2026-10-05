@@ -1,5 +1,28 @@
 import type en from './en';
 const ar: Record<keyof typeof en, string> = {
+  attachedFiles: 'الملفات المرفقة',
+  schedule_has_no_future_occurrence:
+    'لا يوجد موعد قادم لهذا الجدول. اختر وقت بداية أو نهاية في المستقبل.',
+
+  attach: 'إرفاق',
+  attachmentPreview: 'معاينة الصورة',
+  removeAttachment: 'إزالة المرفق',
+  uploading: 'جارٍ الرفع',
+  attachment_invalid:
+    'اختر صورة أو ملف PDF أو نص أو CSV صالحاً بحجم أقل من ٨ ميغابايت.',
+  attachment_upload_failed: 'تعذّر الرفع. ملفاتك ما زالت محددة؛ أعد الإرسال.',
+  attachment_type_unsupported: 'نوع الملف غير مدعوم.',
+  attachment_too_large: 'يجب أن يقل حجم الملف عن ٨ ميغابايت.',
+  tool_failed: 'تعذّر إكمال العملية',
+  queued: 'في الانتظار',
+  analyzing: 'جارٍ التحليل…',
+  waitingSubagents: 'وكلاء البحث يعملون…',
+  mayLeave:
+    'بدأ تنفيذ طلبك على الخادم. يمكنك إغلاق التطبيق؛ فعّل الإشعارات لتصلك رسالة عند الانتهاء.',
+  memory_search: 'البحث في التحليلات السابقة',
+  invalid_credential: 'رفض المزوّد مفتاح الواجهة.',
+  provider_unavailable: 'المزوّد غير متاح مؤقتاً.',
+  catalog_verification_required: 'يحتاج دليل النماذج على الخادم إلى التحقق.',
   brand: 'نيولورا',
   details: 'التفاصيل',
   tradeable: 'متاح للتداول لدى OANDA',

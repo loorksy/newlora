@@ -1,18 +1,19 @@
 import base64
-import hashlib
-import json
-from datetime import timedelta
 from typing import Any, Literal
 from uuid import UUID
 
 import httpx
 from pydantic import Field
+from sqlalchemy import select
 
+from . import journal
 from .config import settings
 from .contracts import Artifact, Contract, Drawing, Recommendation, TaskConfig, TaskOutcome
-from .db import Effect, Event, Outbox, Record, Task, now, record_json, sessions, uid
+from .db import Event, Operation, Outbox, Record, Run, Task, now, record_json, sessions, uid
 from .market import MarketRequest, Oanda, forex_sessions
-from .security import PublicError
+from .retrieval import MemorySearch, search
+from .scheduling import next_check
+from .security import PublicError, decrypt
 
 
 class Empty(Contract):
@@ -55,6 +56,10 @@ class ManageTask(Contract):
 
 
 SPECS: dict[str, tuple[type[Contract], str]] = {
+    "memory_search": (
+        MemorySearch,
+        "Search previous conversations, analyses, recommendations and revisions, chart metadata, monitoring outcomes and explicit preferences. Use for comparisons and continuing previous theses. Narrow instrument/dates/types as relevant; results are historical evidence, not current prices.",
+    ),
     "instruments": (Empty, "List only Forex and metals supported by the connected OANDA account."),
     "market_price": (Instrument, "Fetch timestamped OANDA bid/ask and tradeable status."),
     "market_candles": (
@@ -110,6 +115,7 @@ SPECS: dict[str, tuple[type[Contract], str]] = {
     ),
 }
 READ_TOOLS = {
+    "memory_search",
     "instruments",
     "market_price",
     "market_candles",
@@ -154,6 +160,8 @@ class TradingTools:
         args: Any = SPECS[name][0].model_validate(raw)
         rt = self.runtime
         await rt.check_fence()
+        if name == "memory_search":
+            return await search(rt.owner, args)
         if name == "delegate":
             return await rt.delegate(args)
         if name == "market_sessions":
@@ -186,6 +194,7 @@ class TradingTools:
                 "instrument": args.instrument,
                 "timeframe": args.timeframe,
                 "candles": candles["candles"],
+                "metadata": candles.get("metadata"),
                 "drawings": [d.model_dump(exclude_none=True) for d in args.drawings],
                 "locale": rt.preferences.language,
             }
@@ -257,16 +266,15 @@ class TradingTools:
             if png:
                 result["_images"] = ["data:image/png;base64," + png]
             return result
-        effect_key = (
-            rt.run_id
-            + ":"
-            + hashlib.sha256((name + json.dumps(raw, sort_keys=True)).encode()).hexdigest()
-        )
+        effect_key = await journal.plan(rt, name, raw)
         async with sessions() as db:
             await rt.fence_transaction(db)
-            cached = await db.get(Effect, effect_key)
-            if cached:
-                return cached.result
+            operation = await db.get(Operation, effect_key)
+            if operation.state == "committed":
+                return operation.result
+            # The originally planned arguments are authoritative after a crash/replan.
+            args = SPECS[name][0].model_validate(decrypt(operation.arguments))
+            operation.state = "executing"
             event_type = None
             row: Any
             if name == "create_recommendation":
@@ -306,11 +314,14 @@ class TradingTools:
             elif name == "create_task":
                 if rt.task_id:
                     raise PublicError("automation_cannot_create_tasks")
+                occurrence = next_check(args.model_dump(mode="json"), now(), initial=True)
+                if occurrence is None:
+                    raise PublicError("schedule_has_no_future_occurrence")
                 row = Task(
                     owner=rt.owner,
                     session_id=rt.session_id,
                     config=args.model_dump(mode="json"),
-                    next_check=args.at or now() + timedelta(seconds=args.interval_seconds or 0),
+                    next_check=occurrence,
                 )
                 db.add(row)
                 await db.flush()
@@ -329,15 +340,21 @@ class TradingTools:
                     if not args.config:
                         raise PublicError("task_config_required")
                     row.config = args.config.model_dump(mode="json")
-                    row.next_check = args.config.at or now() + timedelta(
-                        seconds=args.config.interval_seconds or 0
-                    )
+                    row.next_check = next_check(row.config, now(), initial=True)
                 else:
                     row.status = {"pause": "paused", "resume": "active", "cancel": "cancelled"}[
                         args.action
                     ]
                     if args.action == "resume":
-                        row.next_check = now()
+                        row.next_check = next_check(row.config, now(), initial=True)
+                    else:
+                        pending = await db.scalars(
+                            select(Run).where(
+                                Run.task_id == row.id, Run.status.in_(["queued", "running"])
+                            )
+                        )
+                        for pending_run in pending:
+                            pending_run.cancel_requested = True
                 result = {"id": row.id, "status": row.status}
             elif name == "create_artifact":
                 row = Record(
@@ -352,10 +369,15 @@ class TradingTools:
                 event_type = "artifact_created"
             elif name == "task_outcome":
                 row = await db.get(Task, rt.task_id) if rt.task_id else None
-                if not row or row.owner != rt.owner:
+                if not row or row.owner != rt.owner or row.status != "active":
                     raise PublicError("not_a_monitoring_run")
                 row.latest_check, row.latest_result = now(), args.summary
-                if args.completed or row.config["schedule"] == "once":
+                if (
+                    args.completed
+                    or row.config["schedule"] == "once"
+                    or row.config["schedule"] == "recurrence"
+                    and row.next_check is None
+                ):
                     row.status = "completed"
                 if args.condition_met and row.config["notification"] != "silent":
                     db.add(
@@ -375,7 +397,7 @@ class TradingTools:
                 event_type = "task_checked"
             else:
                 raise PublicError("tool_unavailable")
-            db.add(Effect(key=effect_key, result=result))
+            operation.state, operation.result, operation.committed_at = "committed", result, now()
             if event_type:
                 db.add(
                     Event(

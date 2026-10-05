@@ -226,3 +226,122 @@ test('settings starts with no keys or invented model choices', async () => {
   );
   expect(screen.queryByText('gpt-4o')).toBeNull();
 });
+
+import { Attachments } from '../src/components/Attachments';
+import { pickAttachment, uploadAttachment } from '../src/services/attachments';
+jest.mock('../src/services/attachments', () => ({
+  pickAttachment: jest.fn(),
+  uploadAttachment: jest.fn(),
+}));
+
+test.each(['ar', 'en'] as const)(
+  'attachment preview, progress and removal in %s',
+  lang => {
+    const remove = jest.fn();
+    render(
+      <LocaleContext.Provider value={lang}>
+        <Attachments
+          files={[
+            {
+              uri: 'content://user/chart',
+              name: 'XAU_USD.png',
+              type: 'image/png',
+              size: 40,
+              progress: 50,
+            },
+          ]}
+          remove={remove}
+          disabled={false}
+        />
+      </LocaleContext.Provider>,
+    );
+    expect(
+      screen.getByLabelText(translate(lang, 'attachmentPreview')),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(translate(lang, 'uploading') + ' 50%'),
+    ).toBeTruthy();
+    fireEvent.press(screen.getByLabelText(translate(lang, 'removeAttachment')));
+    expect(remove).toHaveBeenCalledWith(0);
+  },
+);
+
+test('composer sends uploaded attachment IDs and a real queued state', async () => {
+  jest
+    .mocked(pickAttachment)
+    .mockResolvedValue({
+      uri: 'content://chart',
+      name: 'chart.png',
+      type: 'image/png',
+      size: 50,
+    });
+  jest.mocked(uploadAttachment).mockResolvedValue('attachment-1');
+  render(<App />);
+  await screen.findByText('رؤية أوضح للسوق.');
+  fireEvent.press(screen.getByLabelText('إرفاق'));
+  await screen.findByText(isolate('chart.png'));
+  fireEvent.press(screen.getByLabelText('إرسال'));
+  await waitFor(() =>
+    expect(req).toHaveBeenCalledWith(
+      '/conversations/session-1/messages',
+      'POST',
+      expect.objectContaining({ attachmentIds: ['attachment-1'] }),
+    ),
+  );
+  expect(await screen.findByText('في الانتظار')).toBeTruthy();
+  expect(screen.getByText(translate('ar', 'mayLeave'))).toBeTruthy();
+});
+
+test('failed upload stays selected with a clear retry message', async () => {
+  jest
+    .mocked(pickAttachment)
+    .mockResolvedValue({
+      uri: 'content://report',
+      name: 'report.pdf',
+      type: 'application/pdf',
+      size: 50,
+    });
+  jest
+    .mocked(uploadAttachment)
+    .mockRejectedValue({ code: 'attachment_upload_failed' });
+  render(<App />);
+  await screen.findByText('رؤية أوضح للسوق.');
+  fireEvent.press(screen.getByLabelText('إرفاق'));
+  await screen.findByText(isolate('report.pdf'));
+  fireEvent.press(screen.getByLabelText('إرسال'));
+  expect(
+    await screen.findByText(translate('ar', 'attachment_upload_failed')),
+  ).toBeTruthy();
+  expect(screen.getByText(isolate('report.pdf'))).toBeTruthy();
+  expect(req.mock.calls.some(c => c[0].endsWith('/messages'))).toBe(false);
+});
+
+test('tool failures render safe failure activity, without arguments', async () => {
+  render(<App />);
+  await screen.findByText('رؤية أوضح للسوق.');
+  fireEvent.changeText(
+    screen.getByLabelText(translate('ar', 'composer')),
+    'gold',
+  );
+  fireEvent.press(screen.getByLabelText('إرسال'));
+  await waitFor(() => expect(subscribe).toHaveBeenCalled());
+  act(() =>
+    jest
+      .mocked(subscribe)
+      .mock.calls[0][1]({
+        id: 1,
+        event: 'agent.activity',
+        version: 1,
+        sessionId: 'session-1',
+        runId: 'run-1',
+        timestamp: '2026-10-04T00:00:00Z',
+        payload: {
+          type: 'tool_failed',
+          tool: 'market_price',
+          code: 'tool_temporarily_unavailable',
+        },
+      }),
+  );
+  expect(screen.getByText(translate('ar', 'tool_failed'))).toBeTruthy();
+  expect(screen.queryByText('tool_temporarily_unavailable')).toBeNull();
+});

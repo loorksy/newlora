@@ -1,3 +1,4 @@
+import { chartPrecision } from "@newlora/contracts";
 import { ar } from "./locales";
 import { KLineChartPro, loadLocales } from "@klinecharts/pro";
 import "@klinecharts/pro/dist/klinecharts-pro.css";
@@ -74,8 +75,8 @@ async function load(next: ChartState) {
     market: "forex",
     priceCurrency: "",
     type: "forex",
-    pricePrecision: 5,
-    volumePrecision: 0,
+    pricePrecision: chartPrecision(state).price,
+    volumePrecision: chartPrecision(state).volume,
   };
   if (!pro) {
     pro = new KLineChartPro({
