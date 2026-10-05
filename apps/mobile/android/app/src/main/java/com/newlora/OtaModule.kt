@@ -14,6 +14,13 @@ import java.io.File
 class OtaModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
     override fun getName() = "NewloraOta"
 
+    override fun getConstants(): MutableMap<String, Any> =
+        hashMapOf(
+            "versionName" to BuildConfig.VERSION_NAME,
+            "versionCode" to BuildConfig.VERSION_CODE,
+            "embeddedGitSha" to BuildConfig.EMBEDDED_GIT_SHA,
+        )
+
     private fun root() = OtaStore.root(reactApplicationContext)
 
     @ReactMethod

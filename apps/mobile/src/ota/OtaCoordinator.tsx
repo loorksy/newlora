@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { UpdateSheet } from '../components/UpdateSheet';
 import { checkUpdate, markHealthy, reloadAllowed, resetToEmbedded, shouldCheck } from './engine';
+import { otaLog } from './log';
 import { bridgeFs, otaNative } from './native';
 import { OTA_PUBLIC_KEY_HEX } from './publicKey';
 import { publishOta, useOtaSession } from './session';
@@ -32,6 +33,7 @@ export function OtaCoordinator({
     !reloadAllowed({ typing, uploading, streaming, voice, submitting }) || sens;
   const blockedRef = useRef(blocked);
   blockedRef.current = blocked;
+  const deferredFor = useRef<string | null>(null);
 
   useEffect(() => subscribeSensitive(() => setSens(sensitiveNow())), []);
 
@@ -76,7 +78,13 @@ export function OtaCoordinator({
       await native.reload();
     };
     void (async () => {
-      const booted = markHealthy(await fs.readState());
+      const raw = await fs.readState();
+      if (raw.lastError === 'rolledBack') otaLog('OTA_ROLLBACK');
+      if (raw.launchSource === 'pending') otaLog('OTA_BOOT_PENDING');
+      else if (raw.launchSource === 'good') otaLog('OTA_BOOT_FROM_OTA');
+      else otaLog('OTA_BOOT_EMBEDDED');
+      const booted = markHealthy(raw);
+      if (raw.launchSource === 'pending' && booted.good?.id === raw.launchedId) otaLog('OTA_HEALTHY');
       await fs.writeState(booted);
       if (!stopped) publish(booted.status, booted);
       await run(false);
@@ -102,8 +110,17 @@ export function OtaCoordinator({
   }, []);
 
   useEffect(() => {
+    const pendingId = session.state.pending?.id ?? '';
+    if (session.phase === 'ready' && blocked) {
+      if (deferredFor.current !== pendingId) {
+        deferredFor.current = pendingId || 'ready';
+        otaLog('OTA_RELOAD_DEFERRED');
+      }
+    } else if (!blocked) {
+      deferredFor.current = null;
+    }
     setOpen(session.phase === 'ready' && !blocked);
-  }, [session.phase, blocked]);
+  }, [session.phase, blocked, session.state.pending?.id]);
 
   return (
     <UpdateSheet

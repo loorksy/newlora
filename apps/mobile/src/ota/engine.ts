@@ -12,6 +12,7 @@ import {
   type OtaState,
   type ReleaseManifest,
 } from './types';
+import { otaLog } from './log';
 import {
   assessManifest,
   sha256Hex,
@@ -107,12 +108,17 @@ export async function stageRelease(
   publicKey: Uint8Array,
 ): Promise<OtaState> {
   if (malformedReason(manifest) || !signatureValid(manifest, publicKey)) {
+    otaLog('OTA_SIGNATURE_REJECTED');
     throw new Error('signature');
   }
   if (bundle.byteLength !== manifest.bundle.size || bundle.byteLength > MAX_BUNDLE_BYTES) {
     throw new Error('size');
   }
-  if (sha256Hex(bundle) !== manifest.bundle.sha256) throw new Error('hash');
+  if (sha256Hex(bundle) !== manifest.bundle.sha256) {
+    otaLog('OTA_HASH_REJECTED');
+    throw new Error('hash');
+  }
+  otaLog('OTA_DOWNLOAD_VERIFIED');
   const partial = `partial/${manifest.id}`;
   const finalDir = `releases/${manifest.id}`;
   await fs.removeTree(partial);
@@ -122,11 +128,17 @@ export async function stageRelease(
     encodeUtf8(JSON.stringify(manifest)),
   );
   const written = await fs.readFile(`${partial}/bundle`);
-  if (!written || sha256Hex(written) !== manifest.bundle.sha256) throw new Error('hash');
+  if (!written || sha256Hex(written) !== manifest.bundle.sha256) {
+    otaLog('OTA_HASH_REJECTED');
+    throw new Error('hash');
+  }
   await fs.removeTree(finalDir);
   await fs.rename(partial, finalDir);
   const placed = await fs.readFile(releaseBundlePath(manifest.id));
-  if (!placed || sha256Hex(placed) !== manifest.bundle.sha256) throw new Error('hash');
+  if (!placed || sha256Hex(placed) !== manifest.bundle.sha256) {
+    otaLog('OTA_HASH_REJECTED');
+    throw new Error('hash');
+  }
   const next: OtaState = {
     ...state,
     pending: installedFrom(manifest),
@@ -135,6 +147,7 @@ export async function stageRelease(
     lastError: null,
   };
   await fs.writeState(next);
+  otaLog('OTA_STAGED');
   return next;
 }
 
@@ -165,6 +178,7 @@ export async function checkUpdate(input: {
 }): Promise<CheckResult> {
   const fetchImpl = input.fetchImpl ?? fetch;
   const now = input.now ?? (() => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'));
+  otaLog('OTA_CHECK_STARTED');
   let state = await input.fs.readState();
   const previousPhase = state.status;
   state = { ...state, status: 'checking', lastError: null };
@@ -190,6 +204,7 @@ export async function checkUpdate(input: {
       return { state, phase: state.status, reason: 'offline' };
     }
     if (manifestResponse.status === 404) {
+      otaLog('OTA_NO_UPDATE');
       state = { ...state, status: 'upToDate', lastCheckedAt: now(), lastError: null };
       await input.fs.writeState(state);
       return { state, phase: 'upToDate', reason: 'current' };
@@ -206,16 +221,19 @@ export async function checkUpdate(input: {
       goodId: state.good?.id ?? null,
     });
     if (decision === 'current') {
+      otaLog('OTA_NO_UPDATE');
       state = { ...state, status: 'upToDate', lastCheckedAt: now(), lastError: null };
       await input.fs.writeState(state);
       return { state, phase: 'upToDate', reason: 'current' };
     }
     if (decision === 'runtime') {
+      otaLog('OTA_RUNTIME_REJECTED');
       state = { ...state, status: 'apkRequired', lastCheckedAt: now(), lastError: 'runtime' };
       await input.fs.writeState(state);
       return { state, phase: 'apkRequired', reason: 'runtime' };
     }
     if (decision !== 'install') {
+      if (decision === 'signature') otaLog('OTA_SIGNATURE_REJECTED');
       state = { ...state, status: 'failed', lastCheckedAt: now(), lastError: decision };
       await input.fs.writeState(state);
       return { state, phase: 'failed', reason: decision };
@@ -225,8 +243,10 @@ export async function checkUpdate(input: {
       await input.fs.writeState(state);
       return { state, phase: 'ready' };
     }
+    otaLog('OTA_MANIFEST_ACCEPTED');
     state = { ...state, status: 'downloading' };
     await input.fs.writeState(state);
+    otaLog('OTA_DOWNLOAD_STARTED');
     const bundleResponse = await fetchImpl(manifest.bundle.url, { signal: controller.signal });
     if (!bundleResponse.ok) throw new Error('malformed');
     const bundle = await readBody(bundleResponse, MAX_BUNDLE_BYTES);

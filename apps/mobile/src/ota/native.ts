@@ -1,4 +1,5 @@
 import { NativeModules } from 'react-native';
+import { NATIVE_VERSION, VERSION_CODE } from './buildStamp';
 import { decodeUtf8, encodeUtf8, fromBase64, toBase64 } from './codec';
 import { emptyState, type OtaState } from './types';
 import type { OtaFs } from './store';
@@ -23,6 +24,24 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return toBase64(bytes);
 }
 
+export type NativeBuild = {
+  versionName: string;
+  versionCode: number;
+  embeddedGitSha: string;
+};
+
+export function readNativeBuild(): NativeBuild {
+  const native = NativeModules.NewloraOta as
+    | { versionName?: string; versionCode?: number; embeddedGitSha?: string }
+    | undefined;
+  const versionCode = Number(native?.versionCode);
+  return {
+    versionName: native?.versionName || NATIVE_VERSION,
+    versionCode: Number.isFinite(versionCode) && versionCode > 0 ? versionCode : VERSION_CODE,
+    embeddedGitSha: typeof native?.embeddedGitSha === 'string' ? native.embeddedGitSha : '',
+  };
+}
+
 export function bridgeFs(native: NativeOta): OtaFs {
   return {
     async readState() {
@@ -34,9 +53,8 @@ export function bridgeFs(native: NativeOta): OtaFs {
       await native.writeText('state.json', JSON.stringify(state));
     },
     async writeFileAtomic(rel, bytes) {
-      const text = decodeUtf8(bytes);
       if (rel.endsWith('.json') || rel.endsWith('.json.tmp')) {
-        await native.writeText(rel, text);
+        await native.writeText(rel, decodeUtf8(bytes));
         return;
       }
       await native.writeBytes(rel, bytesToBase64(bytes));

@@ -1,0 +1,21 @@
+const EVENTS = new Set([
+  'OTA_CHECK_STARTED',
+  'OTA_MANIFEST_ACCEPTED',
+  'OTA_NO_UPDATE',
+  'OTA_DOWNLOAD_STARTED',
+  'OTA_DOWNLOAD_VERIFIED',
+  'OTA_STAGED',
+  'OTA_RELOAD_DEFERRED',
+  'OTA_BOOT_PENDING',
+  'OTA_BOOT_FROM_OTA',
+  'OTA_BOOT_EMBEDDED',
+  'OTA_HEALTHY',
+  'OTA_ROLLBACK',
+  'OTA_SIGNATURE_REJECTED',
+  'OTA_HASH_REJECTED',
+  'OTA_RUNTIME_REJECTED',
+]);
+
+export function otaLog(event: string): void {
+  if (EVENTS.has(event)) console.log(event);
+}

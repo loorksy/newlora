@@ -2,6 +2,7 @@ package com.newlora
 
 import android.content.Context
 import android.util.Base64
+import android.util.Log
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 import org.json.JSONArray
@@ -17,6 +18,7 @@ import java.security.MessageDigest
  */
 object OtaStore {
     private const val MAX_ATTEMPTS = 2
+    private const val TAG = "NewloraOta"
     const val RUNTIME = "newlora-android-runtime-1"
     private const val PUBLIC_KEY_HEX =
         "21ddfa82c60db030840c3cf5592d43783fa0102f588343d42158a3c07441c580"
@@ -40,29 +42,39 @@ object OtaStore {
                 state.remove("pending")
                 state.put("pendingAttempts", 0)
                 state.put("lastError", "rolledBack")
+                Log.i(TAG, "OTA_ROLLBACK")
             } else if (pending != null) {
-                if (verified(dir, pending)) {
+                val reason = failure(dir, pending)
+                if (reason == null) {
                     attempts += 1
                     state.put("pendingAttempts", attempts)
                     source = "pending"
                     id = pending.getString("id")
+                    Log.i(TAG, "OTA_BOOT_PENDING")
                 } else {
                     state.remove("pending")
                     state.put("pendingAttempts", 0)
-                    state.put("lastError", "signature")
+                    state.put("lastError", reason)
+                    logReject(reason)
                 }
             }
             if (source == "embedded") {
                 val good = state.optJSONObject("good")
-                if (good != null && verified(dir, good)) {
-                    source = "good"
-                    id = good.getString("id")
-                } else if (good != null) {
-                    state.put("previous", good)
-                    state.remove("good")
-                    state.put("lastError", "signature")
+                if (good != null) {
+                    val reason = failure(dir, good)
+                    if (reason == null) {
+                        source = "good"
+                        id = good.getString("id")
+                        Log.i(TAG, "OTA_BOOT_FROM_OTA")
+                    } else {
+                        state.put("previous", good)
+                        state.remove("good")
+                        state.put("lastError", reason)
+                        logReject(reason)
+                    }
                 }
             }
+            if (source == "embedded") Log.i(TAG, "OTA_BOOT_EMBEDDED")
             state.put("launchSource", source)
             if (id == null) state.put("launchedId", JSONObject.NULL) else state.put("launchedId", id)
             state.put("healthy", false)
@@ -81,23 +93,33 @@ object OtaStore {
         bundlePath = null
     }
 
-    private fun verified(dir: File, release: JSONObject): Boolean {
+    private fun logReject(reason: String) {
+        val event = when (reason) {
+            "hash" -> "OTA_HASH_REJECTED"
+            "runtime" -> "OTA_RUNTIME_REJECTED"
+            else -> "OTA_SIGNATURE_REJECTED"
+        }
+        Log.i(TAG, event)
+    }
+
+    private fun failure(dir: File, release: JSONObject): String? {
         return try {
             val id = release.getString("id")
-            if (!id.matches(Regex("^[A-Za-z0-9._-]{8,80}$"))) return false
+            if (!id.matches(Regex("^[A-Za-z0-9._-]{8,80}$"))) return "signature"
             val manifestFile = File(dir, "releases/$id/manifest.json")
             val bundle = File(dir, "releases/$id/bundle")
-            if (!manifestFile.isFile || !bundle.isFile) return false
-            if (bundle.length() <= 0L || bundle.length() > 20L * 1024L * 1024L) return false
+            if (!manifestFile.isFile || !bundle.isFile) return "signature"
+            if (bundle.length() <= 0L || bundle.length() > 20L * 1024L * 1024L) return "signature"
             val manifest = JSONObject(manifestFile.readText())
-            if (manifest.optString("id") != id) return false
-            if (manifest.optString("runtimeVersion") != RUNTIME) return false
+            if (manifest.optString("id") != id) return "signature"
+            if (manifest.optString("runtimeVersion") != RUNTIME) return "runtime"
             val declared = manifest.getJSONObject("bundle").getString("sha256")
             val digest = sha256(bundle.readBytes())
-            if (digest != declared || digest != release.optString("sha256")) return false
-            signatureValid(manifest)
+            if (digest != declared || digest != release.optString("sha256")) return "hash"
+            if (!signatureValid(manifest)) return "signature"
+            null
         } catch (_: Exception) {
-            false
+            "signature"
         }
     }
 

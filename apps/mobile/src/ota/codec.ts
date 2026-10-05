@@ -25,8 +25,11 @@ export function decodeUtf8(bytes: Uint8Array): string {
 }
 
 const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const decodeMap = new Uint8Array(128).fill(255);
+for (let i = 0; i < alphabet.length; i += 1) decodeMap[alphabet.charCodeAt(i)] = i;
 
 export function toBase64(bytes: Uint8Array): string {
+  const parts: string[] = [];
   let out = '';
   for (let i = 0; i < bytes.length; i += 3) {
     const a = bytes[i];
@@ -37,24 +40,37 @@ export function toBase64(bytes: Uint8Array): string {
     out += alphabet[(triple >> 12) & 63];
     out += i + 1 < bytes.length ? alphabet[(triple >> 6) & 63] : '=';
     out += i + 2 < bytes.length ? alphabet[triple & 63] : '=';
+    if (out.length >= 32768) {
+      parts.push(out);
+      out = '';
+    }
   }
-  return out;
+  if (out) parts.push(out);
+  return parts.join('');
 }
 
 export function fromBase64(value: string): Uint8Array | null {
   const cleaned = value.replace(/=+$/, '').replace(/-/g, '+').replace(/_/g, '/');
   if (cleaned.length % 4 === 1 || /[^A-Za-z0-9+/]/.test(cleaned)) return null;
-  const out: number[] = [];
+  const out = new Uint8Array(Math.floor((cleaned.length * 3) / 4));
+  let written = 0;
   for (let i = 0; i < cleaned.length; i += 4) {
-    const a = alphabet.indexOf(cleaned[i]);
-    const b = alphabet.indexOf(cleaned[i + 1] || 'A');
-    const c = alphabet.indexOf(cleaned[i + 2] || 'A');
-    const d = alphabet.indexOf(cleaned[i + 3] || 'A');
-    if (a < 0 || b < 0 || c < 0 || d < 0) return null;
+    const a = decodeMap[cleaned.charCodeAt(i)] ?? 255;
+    const b = decodeMap[cleaned.charCodeAt(i + 1)] ?? 255;
+    const c = i + 2 < cleaned.length ? (decodeMap[cleaned.charCodeAt(i + 2)] ?? 255) : 0;
+    const d = i + 3 < cleaned.length ? (decodeMap[cleaned.charCodeAt(i + 3)] ?? 255) : 0;
+    if (a === 255 || b === 255 || c === 255 || d === 255) return null;
     const triple = (a << 18) | (b << 12) | (c << 6) | d;
-    out.push((triple >> 16) & 255);
-    if (i + 2 < cleaned.length) out.push((triple >> 8) & 255);
-    if (i + 3 < cleaned.length) out.push(triple & 255);
+    out[written] = (triple >> 16) & 255;
+    written += 1;
+    if (i + 2 < cleaned.length) {
+      out[written] = (triple >> 8) & 255;
+      written += 1;
+    }
+    if (i + 3 < cleaned.length) {
+      out[written] = triple & 255;
+      written += 1;
+    }
   }
-  return Uint8Array.from(out);
+  return out.slice(0, written);
 }
