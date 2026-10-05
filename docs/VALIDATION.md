@@ -1,6 +1,38 @@
 # Implementation and validation ledger
 
-Hardening checked 2026-10-05 against the independent Newlora alpha. PR #1 must remain **Draft**. No real OANDA account, LLM credential, Firebase project, production signing identity, public domain, or target VPS was available. Local validation is not production certification.
+Hardening checked 2026-10-05 against the independent Newlora alpha. PR #1 must remain **Draft**. No real OANDA account, LLM credential, Firebase project, production signing identity, or public domain was available. The isolated deployment section below is the live-acceptance record for this host. It does not replace the earlier local ledger, and it is not production certification.
+
+## Isolated deployment acceptance
+
+Checked 2026-10-05 on this host after `9fb8d0de7e0655741225c197525abcbb1d7e4e10`. The machine is the Cursor agent environment (`hostname` `cursor`, Ubuntu 24.04.4 LTS, 4 vCPU, 15 GiB RAM, about 198 GiB free after the images were built). A read-only inventory found no other application directories under `/opt`, `/srv`, or `/var/www`, and no other Compose projects. The host PostgreSQL 16 cluster on `127.0.0.1:5432`, Cursor services, Docker storage driver (`vfs`), and `/var/lib/docker` were not modified. No other project's containers, volumes, networks, or config files were stopped, deleted, or read for secrets.
+
+Newlora is deployed only at `/opt/newlora/app`, Compose project `newlora`, commit `9fb8d0de7e0655741225c197525abcbb1d7e4e10`. The running containers are that commit. This ledger section is documentation only and was not rebuilt into those images. Fresh images, not the earlier historical tags: API `sha256:d1c2e1913dfead6cb7badacd726efdf48349ff727d83feba7712b09426911144`, browser `sha256:bfcbc4b06388ff19a21beb8ac5053d149cfefb9993580da4fc9dab91ab92ba64`. Secrets are in `/opt/newlora/app/.env` mode `0600` and were not committed. No public hostname was provided, so Caddy was not started and no DNS or TLS record was changed. The API is bound to `127.0.0.1:18080` only.
+
+Stale `iptables-legacy` rules on this host dropped forwarded traffic for every bridge except `docker0`, while Docker 29 had written the Newlora rules into nftables. Newlora container networking and egress were impossible until legacy forward, established-return, and outbound masquerade rules were added for the Newlora bridges only. Those rules were not a global policy change and were not applied to another project. PostgreSQL on the internal network still cannot reach the public internet.
+
+| Item | Result |
+|---|---|
+| Postgres 17.11, Redis 7.4, migration `0002` | PASS |
+| API, worker, scheduler, notifier, voice, browser, egress, search health | PASS (`/health/ready` 200 after a Newlora Postgres restart) |
+| Postgres, Redis, browser, search, and egress not published on the host | PASS |
+| Browser has no Docker socket or host mount; read-only root, all capabilities dropped, seccomp and no-new-privileges set | PASS |
+| API login works; unauthenticated settings return `authentication_required`; credential values are not in service logs | PASS |
+| Full Playwright stack loads `http://example.com` and `https://example.com` | PASS. Title `Example Domain`, body text present, screenshot PNG 75,694 bytes, magic `89504e47` |
+| Egress proxy rejects loopback, `localhost`, `10.1.1.1`, `172.16.0.1`, `192.168.1.1`, and `169.254.169.254` | PASS, HTTP 403, no body |
+| Playwright `/browse` of those HTTP URLs | No page content (`text_len` 0). The endpoint returns HTTP 200 for the empty proxy response rather than an error. `https://169.254.169.254/` returns 502 `browser_unavailable`. SSRF protection was not weakened |
+| Synthetic `XAU_USD` chart render through the browser | PASS, PNG 2,400×1,500. This did not use OANDA |
+| Chart annotation | A horizontal drawing was submitted and a PNG was returned. No vision model inspected the pixels. Visual annotation acceptance is NOT TESTED |
+| OANDA Practice, OpenAI, Anthropic, Z.AI | BLOCKED. No Newlora credentials were present. Other projects were not searched |
+| Real `XAU_USD` analysis, vision inspection, recommendation, web/news research by the agent | BLOCKED. Search itself answers `/healthz` 200, which is not a research result |
+| Crash recovery during a live analysis, background continuation after a client disconnect | BLOCKED. No provider run was started, and no Android client was connected |
+| Tasks, memory retrieval, FCM, voice | BLOCKED. No provider credentials, Firebase project, or Android device |
+| Attachment PNG, JPEG, WebP, PDF, TXT, and CSV upload | PASS. Responses contained no filesystem path. TXT and CSV extraction matched the uploaded text. PDF stored an encrypted extraction field |
+| Deployed hydration | PASS. The PNG attachment hydrated to a `data:image/png;base64,` URL with no path. Thirteen references failed with `multimodal_payload_too_large` before any provider call. A model-run checkpoint was NOT TESTED |
+| Backup and restore | PASS for an isolated check. `pg_dump` restored into `newlora_restore` at Alembic `0002`, then that database was dropped. An artifact marker was archived and restored. The master key is only on this same disk at `/opt/newlora/secrets/master-key` mode `0600`. Off-host backup is NOT TESTED |
+| Public DNS and TLS | NOT TESTED. No domain was provided |
+| Android arm64 preview APK from this commit | PASS build and debug-signature verification. SHA-256 `52dbc530e6b2353228344ff8194eb11f347a508f2a56434dbcd17f7457e2579f`. `lib/arm64-v8a` only. The bundle contains `multimodal_payload_too_large`. Not published |
+
+No product source change was required for this deployment. PR #1 stays Draft. Live provider, device, DNS/TLS, and in-flight crash acceptance are still open.
 
 ## Automated checks
 
