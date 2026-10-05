@@ -3,12 +3,13 @@ import { StyleSheet, View } from 'react-native';
 import { useLocale } from '../i18n';
 import { iconForActivity } from '../icons/map';
 import type { ActivityItem } from '../app/types';
-import { colors, radius, space } from '../theme';
+import { useColors } from '../theme';
 import { Icon } from './Icon';
-import { Label, styles as ui } from './UI';
+import { Label } from './UI';
 
 export function AgentActivity({ items }: { items: ActivityItem[] }) {
   const { t, rtl } = useLocale();
+  const colors = useColors();
   if (!items.length) return null;
   return (
     <View
@@ -19,10 +20,10 @@ export function AgentActivity({ items }: { items: ActivityItem[] }) {
         <View key={`${item.key}-${index}`} style={styles.row}>
           <Icon
             name={iconForActivity(item.key)}
-            size={16}
+            size={14}
             color={item.key === 'tool_failed' ? colors.danger : colors.secondary}
           />
-          <Label style={[ui.muted, styles.label]}>{item.label}</Label>
+          <Label style={[styles.label, { color: colors.secondary }]}>{item.label}</Label>
         </View>
       ))}
     </View>
@@ -30,15 +31,7 @@ export function AgentActivity({ items }: { items: ActivityItem[] }) {
 }
 
 const styles = StyleSheet.create({
-  box: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: space.md,
-    gap: space.sm,
-    backgroundColor: colors.surface,
-  },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 28 },
-  label: { flex: 1 },
+  box: { gap: 4, paddingVertical: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 },
+  label: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

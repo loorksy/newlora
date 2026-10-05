@@ -5,7 +5,7 @@ import { useLocale, isolate } from '../i18n';
 import { backIcon } from '../icons/map';
 import { baseURL, logout, request } from '../services/api';
 import { registerPush } from '../services/notifications';
-import { colors, space } from '../theme';
+import { space, useTheme } from '../theme';
 import { IconButton } from '../components/IconButton';
 import { ProviderRow, providerNames } from '../components/ProviderRow';
 import { SectionHeader } from '../components/SectionHeader';
@@ -35,6 +35,7 @@ export function SettingsScreen({
   onLogout: () => void;
 }) {
   const { t, lang, rtl } = useLocale();
+  const { name: themeName, setTheme } = useTheme();
   const [panel, setPanel] = useState<Panel>(null);
   const [prefs, setPrefs] = useState<Preferences>({
     language: lang,
@@ -144,7 +145,18 @@ export function SettingsScreen({
             />
           </Row>
           <SectionHeader title={t('appearance')} />
-          <SettingRow icon="settings" label={t('appearance')} value={t('dark')} />
+          <Row>
+            <Button
+              label={t('light')}
+              primary={themeName === 'light'}
+              onPress={() => setTheme('light')}
+            />
+            <Button
+              label={t('dark')}
+              primary={themeName === 'dark'}
+              onPress={() => setTheme('dark')}
+            />
+          </Row>
           <SectionHeader title={t('notifications')} />
           <Button
             label={t('notifications')}
@@ -401,5 +413,5 @@ function ModelPicker({
 const layout = StyleSheet.create({
   page: { gap: space.lg },
   gap: { gap: space.md },
-  ltr: { writingDirection: 'ltr', textAlign: 'left', color: colors.text },
+  ltr: { writingDirection: 'ltr', textAlign: 'left' },
 });

@@ -1,9 +1,9 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { IconName } from '../icons/map';
-import { colors, space } from '../theme';
+import { space, useColors } from '../theme';
 import { Icon } from './Icon';
-import { Label, styles as ui } from './UI';
+import { Label } from './UI';
 
 export function EmptyState({
   title,
@@ -12,10 +12,11 @@ export function EmptyState({
   title: string;
   icon?: IconName;
 }) {
+  const colors = useColors();
   return (
     <View style={styles.wrap}>
-      <Icon name={icon} color={colors.secondary} />
-      <Label style={[ui.muted, styles.copy]}>{title}</Label>
+      <Icon name={icon} size={18} color={colors.secondary} />
+      <Label style={[styles.copy, { color: colors.secondary }]}>{title}</Label>
     </View>
   );
 }
@@ -27,5 +28,5 @@ const styles = StyleSheet.create({
     paddingVertical: space.xxl,
     paddingHorizontal: space.lg,
   },
-  copy: { textAlign: 'center' },
+  copy: { textAlign: 'center', fontSize: 13, lineHeight: 18 },
 });

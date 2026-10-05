@@ -1,12 +1,12 @@
 import React from 'react';
 import { View } from 'react-native';
-import { colors } from '../theme';
+import { useColors } from '../theme';
 import { iconMap, type IconName } from '../icons/map';
 
 export function Icon({
   name,
   size = 22,
-  color = colors.text,
+  color,
   label,
 }: {
   name: IconName;
@@ -14,7 +14,9 @@ export function Icon({
   color?: string;
   label?: string;
 }) {
+  const colors = useColors();
   const Glyph = iconMap[name];
+  const ink = color || colors.text;
   return (
     <View
       testID={`icon-${name}`}
@@ -23,7 +25,7 @@ export function Icon({
       importantForAccessibility={label ? 'yes' : 'no-hide-descendants'}
       style={{ width: size, height: size }}
     >
-      <Glyph color={color} size={size} strokeWidth={1.75} />
+      <Glyph color={ink} size={size} strokeWidth={1.75} />
     </View>
   );
 }

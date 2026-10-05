@@ -10,17 +10,25 @@ import {
   type ViewProps,
 } from 'react-native';
 import { useLocale } from '../i18n';
-import { colors, radius, space, type } from '../theme';
+import { radius, space, type, useColors } from '../theme';
 
-export { colors };
+export { colors } from '../theme';
 
 export function Label({ style, ...props }: TextProps) {
   const { rtl } = useLocale();
+  const colors = useColors();
+  const incoming = StyleSheet.flatten(style);
+  const color =
+    incoming?.color ||
+    (incoming?.fontSize === 12 || incoming?.fontSize === 13
+      ? colors.secondary
+      : colors.text);
   return (
     <Text
       {...props}
       style={[
         styles.text,
+        { color },
         {
           textAlign: rtl ? 'right' : 'left',
           writingDirection: rtl ? 'rtl' : 'ltr',
@@ -32,7 +40,20 @@ export function Label({ style, ...props }: TextProps) {
 }
 
 export function Card({ style, ...props }: ViewProps) {
-  return <View {...props} style={[styles.card, style]} />;
+  const colors = useColors();
+  return (
+    <View
+      {...props}
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+        },
+        style,
+      ]}
+    />
+  );
 }
 
 export function Row({ style, ...props }: ViewProps) {
@@ -62,6 +83,7 @@ export function Button({
   disabled?: boolean;
   compact?: boolean;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       accessibilityRole="button"
@@ -71,15 +93,26 @@ export function Button({
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,
-        primary && styles.primary,
+        {
+          borderColor: colors.border,
+          backgroundColor: colors.elevated,
+        },
+        primary && {
+          backgroundColor: colors.primary,
+          borderColor: colors.primary,
+        },
         compact && styles.compact,
-        (disabled || pressed) && styles.pressed,
+        disabled && styles.disabled,
+        pressed && !disabled && styles.pressed,
       ]}
     >
       <Label
         style={[
           styles.buttonLabel,
-          { color: primary ? colors.bg : colors.text, textAlign: 'center' },
+          {
+            color: primary ? colors.primaryForeground : colors.text,
+            textAlign: 'center',
+          },
         ]}
       >
         {label}
@@ -90,6 +123,7 @@ export function Button({
 
 export function Input(props: TextInputProps) {
   const { rtl } = useLocale();
+  const colors = useColors();
   return (
     <TextInput
       placeholderTextColor={colors.secondary}
@@ -97,6 +131,9 @@ export function Input(props: TextInputProps) {
       style={[
         styles.input,
         {
+          backgroundColor: colors.settingsSurface,
+          borderColor: colors.border,
+          color: colors.text,
           textAlign: rtl ? 'right' : 'left',
           writingDirection: rtl ? 'rtl' : 'ltr',
         },
@@ -107,45 +144,38 @@ export function Input(props: TextInputProps) {
 }
 
 export const styles = StyleSheet.create({
-  text: { color: colors.text, ...type.body },
+  text: { ...type.body },
   card: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: radius.lg,
-    padding: space.lg,
+    borderRadius: radius.control,
+    padding: 14,
     gap: space.md,
   },
   row: { alignItems: 'center', gap: space.sm },
   button: {
-    minHeight: 44,
+    minHeight: 40,
     paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-    borderRadius: radius.md,
+    paddingVertical: 8,
+    borderRadius: radius.control,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.elevated,
     justifyContent: 'center',
   },
-  primary: { backgroundColor: colors.accent, borderColor: colors.accent },
-  compact: { paddingHorizontal: space.md, minHeight: 44 },
-  pressed: { opacity: 0.55 },
+  compact: { paddingHorizontal: space.md, minHeight: 36 },
+  pressed: { opacity: 0.72 },
+  disabled: { opacity: 0.45 },
   buttonLabel: { ...type.button },
   input: {
-    backgroundColor: colors.elevated,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-    color: colors.text,
+    borderRadius: radius.control,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     fontSize: 15,
-    minHeight: 48,
+    minHeight: 40,
   },
-  title: { color: colors.text, ...type.title },
-  section: { color: colors.text, ...type.section },
-  muted: { color: colors.secondary, ...type.meta, lineHeight: 18 },
-  page: { padding: space.xl, gap: space.lg, paddingBottom: 40 },
-  badge: { ...type.meta, color: colors.accent },
-  divider: { height: 1, backgroundColor: colors.border },
+  title: { ...type.title },
+  section: { ...type.section },
+  muted: { ...type.meta, lineHeight: 18 },
+  page: { padding: space.lg, gap: space.lg, paddingBottom: 40 },
+  badge: { ...type.meta },
+  divider: { height: StyleSheet.hairlineWidth },
 });

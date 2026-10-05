@@ -234,6 +234,7 @@ const ar: Record<keyof typeof en, string> = {
   comparePrompt: 'قارن السوق الحالي مع التحليل السابق.',
   tasksServerNote: 'تستمر المهام على الخادم عند إغلاق التطبيق.',
   appearance: 'المظهر',
+  light: 'فاتح',
   dark: 'داكن',
   about: 'حول',
   aboutBody:

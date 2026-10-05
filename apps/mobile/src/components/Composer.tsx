@@ -1,9 +1,10 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useLocale } from '../i18n';
 import type { SelectedFile } from '../services/attachments';
-import { colors, radius, space } from '../theme';
+import { radius, space, useColors } from '../theme';
 import { Attachments } from './Attachments';
+import { Icon } from './Icon';
 import { IconButton } from './IconButton';
 import { Input } from './UI';
 
@@ -13,6 +14,7 @@ export function Composer({
   files,
   busy,
   running,
+  hero = false,
   onRemove,
   onPickFile,
   onPickImage,
@@ -25,6 +27,7 @@ export function Composer({
   files: SelectedFile[];
   busy: boolean;
   running: boolean;
+  hero?: boolean;
   onRemove: (index: number) => void;
   onPickFile: () => void;
   onPickImage: () => void;
@@ -33,9 +36,23 @@ export function Composer({
   onStop: () => void;
 }) {
   const { t, rtl } = useLocale();
+  const colors = useColors();
   const blocked = files.length >= 4 || busy;
+  const canSend = (text.trim().length > 0 || files.length > 0) && !busy;
+  const control = hero ? 32 : 36;
   return (
-    <View style={[styles.panel, { direction: rtl ? 'rtl' : 'ltr' }]}>
+    <View
+      testID={hero ? 'composer-hero' : 'composer-thread'}
+      style={[
+        styles.surface,
+        {
+          direction: rtl ? 'rtl' : 'ltr',
+          borderRadius: hero ? radius.prominent : radius.panel,
+          backgroundColor: colors.elevated,
+          opacity: busy ? 0.6 : 1,
+        },
+      ]}
+    >
       <Attachments files={files} disabled={busy} remove={onRemove} />
       <Input
         multiline
@@ -52,6 +69,8 @@ export function Composer({
           disabled={blocked}
           onPress={onPickFile}
           color={colors.secondary}
+          size={control}
+          iconSize={16}
         />
         <IconButton
           name="image"
@@ -59,24 +78,57 @@ export function Composer({
           disabled={blocked}
           onPress={onPickImage}
           color={colors.secondary}
+          size={control}
+          iconSize={16}
         />
         <IconButton
           name="mic"
           label={t('voice')}
           onPress={onMic}
           color={colors.secondary}
+          size={control}
+          iconSize={16}
         />
         <View style={{ flex: 1 }} />
         {running ? (
-          <IconButton name="stop" label={t('stop')} onPress={onStop} color={colors.danger} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('stop')}
+            onPress={onStop}
+            style={[
+              styles.round,
+              {
+                width: control,
+                height: control,
+                borderRadius: control / 2,
+                borderColor: colors.border,
+                backgroundColor: colors.surface,
+              },
+            ]}
+          >
+            <Icon name="stop" size={14} color={colors.text} />
+          </Pressable>
         ) : (
-          <IconButton
-            name="send"
-            label={t('send')}
-            disabled={(!text.trim() && files.length === 0) || busy}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('send')}
+            accessibilityState={{ disabled: !canSend }}
+            disabled={!canSend}
             onPress={onSend}
-            color={colors.accent}
-          />
+            style={[
+              styles.round,
+              {
+                width: control,
+                height: control,
+                borderRadius: control / 2,
+                borderColor: colors.primary,
+                backgroundColor: colors.primary,
+                opacity: canSend ? 1 : 0.4,
+              },
+            ]}
+          >
+            <Icon name="arrowUp" size={16} color={colors.primaryForeground} />
+          </Pressable>
         )}
       </View>
     </View>
@@ -84,20 +136,28 @@ export function Composer({
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.lg,
-    padding: space.md,
-    gap: space.sm,
+  surface: {
+    paddingTop: space.sm,
+    paddingBottom: space.sm,
+    gap: 2,
   },
   input: {
     borderWidth: 0,
     backgroundColor: 'transparent',
-    minHeight: 72,
+    minHeight: 44,
     maxHeight: 160,
-    paddingHorizontal: space.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
   },
-  tools: { flexDirection: 'row', alignItems: 'center' },
+  tools: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    gap: 2,
+  },
+  round: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
 });

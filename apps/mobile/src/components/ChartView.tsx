@@ -11,10 +11,12 @@ import type {
 } from '@newlora/contracts';
 import { baseURL, id, request } from '../services/api';
 import { useLocale } from '../i18n';
+import { useColors } from '../theme';
 import { Label, styles } from './UI';
 export function ChartView({ item }: { item: Resource<Artifact> }) {
   const ref = useRef<WebView<object>>(null);
   const { t } = useLocale();
+  const colors = useColors();
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
   const [timeframe, setTimeframe] = useState(String(item.data.data.timeframe));
@@ -76,7 +78,7 @@ export function ChartView({ item }: { item: Resource<Artifact> }) {
         allowFileAccess={false}
         mixedContentMode="never"
         setSupportMultipleWindows={false}
-        style={{ flex: 1, backgroundColor: '#090B0F' }}
+        style={{ flex: 1, backgroundColor: colors.bg }}
       />
     </View>
   );
