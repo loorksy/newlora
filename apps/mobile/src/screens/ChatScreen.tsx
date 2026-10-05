@@ -95,5 +95,5 @@ const bar = StyleSheet.create({
     paddingVertical: space.sm,
     justifyContent: 'space-between',
   },
-  ltr: { writingDirection: 'ltr', textAlign: 'left' },
+  ltr: { writingDirection: 'ltr' },
 });

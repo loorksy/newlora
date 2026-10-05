@@ -87,7 +87,7 @@ export function ChartFrame({
 
 const styles = StyleSheet.create({
   title: { fontWeight: '600' },
-  ltr: { writingDirection: 'ltr', textAlign: 'left' },
+  ltr: { writingDirection: 'ltr' },
   image: {
     width: '100%',
     height: 180,

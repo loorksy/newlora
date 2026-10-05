@@ -23,8 +23,12 @@ export function AppHeader({
       <IconButton name="menu" label={t('menu')} onPress={onMenu} />
       <Icon name="brand" color={colors.accent} size={22} />
       <View style={styles.titles}>
-        <Label style={styles.brand}>{t('brand')}</Label>
-        <Label style={styles.scope}>{t('marketScope')}</Label>
+        <Label numberOfLines={1} style={styles.brand}>
+          {t('brand')}
+        </Label>
+        <Label numberOfLines={1} style={styles.scope}>
+          {t('marketScope')}
+        </Label>
       </View>
       {action}
       <View
@@ -36,7 +40,10 @@ export function AppHeader({
           size={14}
           color={online ? colors.success : colors.danger}
         />
-        <Label style={[styles.pillText, { color: online ? colors.success : colors.danger }]}>
+        <Label
+          numberOfLines={1}
+          style={[styles.pillText, { color: online ? colors.success : colors.danger }]}
+        >
           {status}
         </Label>
       </View>
@@ -55,7 +62,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     backgroundColor: colors.bg,
   },
-  titles: { flex: 1, gap: 2 },
+  titles: { flex: 1, minWidth: 0, gap: 2 },
   brand: { fontSize: 18, lineHeight: 22, fontWeight: '600' },
   scope: { color: colors.secondary, fontSize: 11, lineHeight: 14 },
   pill: {
@@ -66,8 +73,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
+    flexShrink: 1,
+    maxWidth: '46%',
   },
   online: { borderColor: colors.success },
   offline: { borderColor: colors.danger },
-  pillText: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
+  pillText: { fontSize: 11, lineHeight: 14, fontWeight: '600', flexShrink: 1 },
 });

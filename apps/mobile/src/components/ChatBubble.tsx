@@ -49,5 +49,5 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
     gap: space.sm,
   },
-  time: { writingDirection: 'ltr', textAlign: 'left' },
+  time: { writingDirection: 'ltr' },
 });

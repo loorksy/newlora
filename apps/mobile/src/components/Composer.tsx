@@ -96,6 +96,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     backgroundColor: 'transparent',
     minHeight: 72,
+    maxHeight: 160,
     paddingHorizontal: space.sm,
   },
   tools: { flexDirection: 'row', alignItems: 'center' },

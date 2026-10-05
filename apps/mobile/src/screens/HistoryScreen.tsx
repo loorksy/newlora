@@ -85,5 +85,5 @@ export function HistoryScreen({
 
 const layout = StyleSheet.create({
   page: { gap: space.lg },
-  ltr: { writingDirection: 'ltr', textAlign: 'left' },
+  ltr: { writingDirection: 'ltr' },
 });

@@ -65,5 +65,5 @@ const styles = StyleSheet.create({
   page: { gap: space.lg },
   support: { fontSize: 15, lineHeight: 22 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  ltr: { writingDirection: 'ltr', textAlign: 'left' },
+  ltr: { writingDirection: 'ltr' },
 });

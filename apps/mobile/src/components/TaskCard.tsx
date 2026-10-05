@@ -58,12 +58,12 @@ export function TaskCard({
       )}
       {!!task.latestResult && <Label style={styles.muted}>{task.latestResult}</Label>}
       {!!task.latestCheck && (
-        <Label style={[styles.muted, ltr]}>
+        <Label style={styles.muted}>
           {t('lastCheck')} · {isolate(new Date(task.latestCheck).toLocaleString(language))}
         </Label>
       )}
       {!!task.nextCheck && (
-        <Label style={[styles.muted, ltr]}>
+        <Label style={styles.muted}>
           {t('nextCheck')} · {isolate(new Date(task.nextCheck).toLocaleString(language))}
         </Label>
       )}
@@ -82,4 +82,4 @@ export function TaskCard({
   );
 }
 
-const ltr = { writingDirection: 'ltr' as const, textAlign: 'left' as const };
+const ltr = { writingDirection: 'ltr' as const };

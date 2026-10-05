@@ -107,7 +107,7 @@ export function UsageScreen({
               .map(([key, value]) => (
                 <View key={key}>
                   <Label style={styles.muted}>{t(key)}</Label>
-                  <Label style={layout.ltr}>
+                  <Label style={layout.embed}>
                     {isolate(
                       key === 'latency'
                         ? Math.round(value as number) + ' ms'
@@ -129,7 +129,7 @@ export function UsageScreen({
                 {rows.slice(0, 10).map(([key, value]) => (
                   <View key={key} style={{ gap: 6 }}>
                     <Row style={{ justifyContent: 'space-between' }}>
-                      <Label numberOfLines={1} style={[styles.muted, layout.ltr, { flex: 1 }]}>
+                      <Label numberOfLines={1} style={[styles.muted, layout.embed, { flex: 1 }]}>
                         {isolate(key)}
                       </Label>
                       <Label>{value.toLocaleString(lang)}</Label>
@@ -160,6 +160,7 @@ const layout = StyleSheet.create({
   page: { gap: space.lg },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   ltr: { writingDirection: 'ltr', textAlign: 'left' },
+  embed: { writingDirection: 'ltr' },
   track: {
     height: 4,
     backgroundColor: colors.strong,

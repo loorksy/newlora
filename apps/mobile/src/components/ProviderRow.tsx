@@ -39,7 +39,7 @@ export function ProviderRow({
       accessibilityRole="button"
       accessibilityLabel={name}
       onPress={onPress}
-      style={styles.row}
+      style={[styles.row, { direction: rtl ? 'rtl' : 'ltr' }]}
     >
       <ProviderMark provider={provider} />
       <View style={{ flex: 1 }}>

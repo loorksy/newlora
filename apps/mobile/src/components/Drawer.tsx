@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocale, isolate } from '../i18n';
 import type { IconName } from '../icons/map';
@@ -55,7 +55,11 @@ export function Drawer({
             <View style={{ flex: 1 }} />
             <IconButton name="close" label={t('close')} onPress={onClose} />
           </View>
-          <View style={styles.nav}>
+          <ScrollView
+            style={styles.navScroll}
+            contentContainerStyle={styles.nav}
+            keyboardShouldPersistTaps="handled"
+          >
             {items.map(item => {
               const active = screen === item.id;
               return (
@@ -77,7 +81,7 @@ export function Drawer({
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
           <View style={styles.footer}>
             <Icon
               name={online ? 'success' : 'alert'}
@@ -91,7 +95,7 @@ export function Drawer({
               {server !== '' && (
                 <Label
                   numberOfLines={1}
-                  style={[styles.server, { writingDirection: 'ltr', textAlign: 'left' }]}
+                  style={[styles.server, { writingDirection: 'ltr' }]}
                 >
                   {isolate(server)}
                 </Label>
@@ -120,7 +124,8 @@ const styles = StyleSheet.create({
   },
   top: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   brand: { fontSize: 20, lineHeight: 26, fontWeight: '600' },
-  nav: { gap: space.sm, marginTop: space.xxxl },
+  navScroll: { flex: 1 },
+  nav: { gap: space.sm, marginTop: space.xxxl, paddingBottom: space.md },
   item: {
     minHeight: 48,
     borderRadius: radius.md,
@@ -133,7 +138,6 @@ const styles = StyleSheet.create({
   itemLabel: { fontSize: 15, lineHeight: 20, color: colors.text },
   activeLabel: { color: colors.accent },
   footer: {
-    marginTop: 'auto',
     paddingTop: space.lg,
     borderTopWidth: 1,
     borderTopColor: colors.border,

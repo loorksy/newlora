@@ -30,7 +30,10 @@ export function SettingRow({
   );
   if (!onPress)
     return (
-      <View accessibilityLabel={label} style={styles.row}>
+      <View
+        accessibilityLabel={label}
+        style={[styles.row, { direction: rtl ? 'rtl' : 'ltr' }]}
+      >
         {body}
       </View>
     );
@@ -39,7 +42,7 @@ export function SettingRow({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={styles.row}
+      style={[styles.row, { direction: rtl ? 'rtl' : 'ltr' }]}
     >
       {body}
     </Pressable>

@@ -68,7 +68,11 @@ function Application({
     return (
       <SafeAreaView style={[shell.root, { direction: rtl ? 'rtl' : 'ltr' }]}>
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
-        <ScrollView keyboardShouldPersistTaps="handled">
+        <ScrollView
+          style={shell.flex}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={shell.signIn}
+        >
           <SignInScreen
             server={app.server}
             password={app.password}
@@ -215,11 +219,12 @@ function Application({
       )}
       <KeyboardAvoidingView
         style={shell.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {chatting ? (
           <>
             <ScrollView
+              style={shell.flex}
               contentContainerStyle={styles.page}
               keyboardShouldPersistTaps="handled"
             >
@@ -229,6 +234,7 @@ function Application({
           </>
         ) : (
           <ScrollView
+            style={shell.flex}
             contentContainerStyle={styles.page}
             keyboardShouldPersistTaps="handled"
           >
@@ -368,6 +374,7 @@ const shell = StyleSheet.create({
     justifyContent: 'center',
   },
   flex: { flex: 1 },
+  signIn: { flexGrow: 1 },
   dock: { paddingHorizontal: space.xl, paddingBottom: space.md },
   error: {
     flexDirection: 'row',

@@ -22,16 +22,30 @@ const tones: Record<string, { icon: IconName; color: string }> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const { t } = useLocale();
+  const { t, rtl } = useLocale();
   const tone = tones[status] || { icon: 'info' as IconName, color: colors.secondary };
   const label = t(status);
   return (
     <View
       accessibilityLabel={label}
-      style={[styles.badge, { borderColor: tone.color }]}
+      style={[
+        styles.badge,
+        { borderColor: tone.color, direction: rtl ? 'rtl' : 'ltr' },
+      ]}
     >
       <Icon name={tone.icon} size={14} color={tone.color} />
-      <Text style={[styles.label, { color: tone.color }]}>{label}</Text>
+      <Text
+        style={[
+          styles.label,
+          {
+            color: tone.color,
+            writingDirection: rtl ? 'rtl' : 'ltr',
+            textAlign: rtl ? 'right' : 'left',
+          },
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }

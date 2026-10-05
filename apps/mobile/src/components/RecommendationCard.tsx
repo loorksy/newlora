@@ -50,4 +50,4 @@ export function RecommendationCard({
   );
 }
 
-const ltr = { writingDirection: 'ltr' as const, textAlign: 'left' as const };
+const ltr = { writingDirection: 'ltr' as const };

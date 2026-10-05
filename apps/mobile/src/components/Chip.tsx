@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
+import { useLocale } from '../i18n';
 import { colors, radius, space } from '../theme';
 
 export function Chip({
@@ -11,6 +12,7 @@ export function Chip({
   selected?: boolean;
   onPress: () => void;
 }) {
+  const { rtl } = useLocale();
   return (
     <Pressable
       accessibilityRole="button"
@@ -23,7 +25,16 @@ export function Chip({
         pressed && styles.pressed,
       ]}
     >
-      <Text style={[styles.label, selected && styles.selectedLabel]}>
+      <Text
+        style={[
+          styles.label,
+          selected && styles.selectedLabel,
+          {
+            writingDirection: rtl ? 'rtl' : 'ltr',
+            textAlign: rtl ? 'right' : 'left',
+          },
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -40,6 +51,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.elevated,
     alignItems: 'center',
     justifyContent: 'center',
+    maxWidth: '100%',
   },
   selected: { backgroundColor: colors.accent, borderColor: colors.accent },
   selectedLabel: { color: colors.bg },
