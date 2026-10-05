@@ -3,7 +3,9 @@ import { View } from 'react-native';
 import { request } from '../services/api';
 import { VoiceSession } from '../services/voice';
 import { useLocale } from '../i18n';
-import { Button, Label, Row, colors, styles } from './UI';
+import { colors } from '../theme';
+import { Icon } from './Icon';
+import { Button, Label, Row, styles } from './UI';
 export function CallView({
   incoming,
   notificationId,
@@ -72,20 +74,18 @@ export function CallView({
     >
       <View
         style={{
-          width: 100,
-          height: 100,
-          borderRadius: 50,
+          width: 96,
+          height: 96,
+          borderRadius: 48,
           borderWidth: 1,
-          borderColor: colors.accent,
+          borderColor: colors.border,
+          backgroundColor: colors.surface,
           alignSelf: 'center',
+          alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Label
-          style={{ textAlign: 'center', fontSize: 36, color: colors.accent }}
-        >
-          N
-        </Label>
+        <Icon name="voice" size={36} color={colors.accent} />
       </View>
       <Label style={[styles.title, { textAlign: 'center' }]}>{t(status)}</Label>
       <Label style={[styles.muted, { textAlign: 'center' }]}>

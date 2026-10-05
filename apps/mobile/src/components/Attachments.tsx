@@ -1,6 +1,7 @@
 import React from 'react';
 import { Image, View } from 'react-native';
-import { Button, Label, Row, styles } from './UI';
+import { IconButton } from './IconButton';
+import { Label, Row, styles } from './UI';
 import { useLocale, isolate } from '../i18n';
 import type { SelectedFile } from '../services/attachments';
 export function Attachments({
@@ -32,8 +33,8 @@ export function Attachments({
               </Label>
             )}
           </View>
-          <Button
-            compact
+          <IconButton
+            name="close"
             label={t('removeAttachment')}
             disabled={disabled}
             onPress={() => remove(i)}

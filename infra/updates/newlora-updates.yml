@@ -1,0 +1,15 @@
+http:
+  routers:
+    newlora-updates:
+      rule: Host(`newlora.lork.cloud`) && PathPrefix(`/app-updates`)
+      entryPoints:
+        - websecure
+      priority: 1000
+      service: newlora-updates
+      tls:
+        certResolver: letsencrypt
+  services:
+    newlora-updates:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:18082

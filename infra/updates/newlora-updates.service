@@ -1,0 +1,18 @@
+[Unit]
+Description=Newlora signed OTA files
+After=network.target
+
+[Service]
+Type=simple
+User=newlora-updates
+Group=newlora-updates
+Environment=OTA_ROOT=/opt/newlora/updates
+Environment=OTA_BIND=127.0.0.1
+Environment=OTA_PORT=18082
+ExecStart=/usr/bin/python3 /opt/newlora/bin/ota-updates.py
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

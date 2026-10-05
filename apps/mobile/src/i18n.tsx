@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import { I18nManager } from 'react-native';
 import en from './locales/en';
 import ar from './locales/ar';
 export type Language = 'ar' | 'en';
@@ -12,4 +13,9 @@ export function useLocale() {
 }
 export function isolate(text: string) {
   return '\u2066' + text + '\u2069';
+}
+export function applyDirection(lang: Language) {
+  const rtl = lang === 'ar';
+  I18nManager.allowRTL(true);
+  if (I18nManager.isRTL !== rtl) I18nManager.forceRTL(rtl);
 }

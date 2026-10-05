@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Image, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import type { Artifact, Resource } from '@newlora/contracts';
 import { exportChart } from '../services/files';
 import { useLocale } from '../i18n';
-import { authHeaders, baseURL, id, request } from '../services/api';
+import { id, request } from '../services/api';
+import { ChartCard } from './ChartCard';
 import { Button, Card, Input, Label, Row, styles } from './UI';
 export function ArtifactView({
   item,
@@ -32,41 +33,28 @@ export function ArtifactView({
   const [sort, setSort] = useState<number | null>(null);
   const a = item.data;
   const d = a.data;
+  if (a.type === 'chart')
+    return (
+      <View style={{ gap: 8 }}>
+        {error !== '' && <Label>{error}</Label>}
+        <ChartCard
+          item={item}
+          busy={exporting}
+          onOpen={() => onChart(item)}
+          onSave={() => {
+            void exportImage(true);
+          }}
+          onShare={() => {
+            void exportImage(false);
+          }}
+        />
+      </View>
+    );
   return (
     <Card>
       {error !== '' && <Label>{error}</Label>}
       <Label style={{ fontWeight: '600' }}>{a.title}</Label>
       {a.type === 'agent_text' && <Label>{String(d.text || '')}</Label>}
-      {a.type === 'chart' && (
-        <>
-          <Image
-            accessibilityLabel={t('attachedChart')}
-            source={{
-              uri: baseURL() + '/artifacts/' + item.id + '/image',
-              headers: authHeaders(),
-            }}
-            style={{ width: '100%', height: 180, borderRadius: 12 }}
-            resizeMode="contain"
-          />
-          <Row style={{ flexWrap: 'wrap' }}>
-            <Button label={t('chart')} onPress={() => onChart(item)} />
-            <Button
-              label={t('save')}
-              disabled={exporting}
-              onPress={() => {
-                void exportImage(true);
-              }}
-            />
-            <Button
-              label={t('share')}
-              disabled={exporting}
-              onPress={() => {
-                void exportImage(false);
-              }}
-            />
-          </Row>
-        </>
-      )}
       {a.type === 'select_item' &&
         ((d.options as { id: string; label: string }[]) || []).map(option => (
           <Button

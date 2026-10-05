@@ -1,0 +1,123 @@
+import {
+  Activity,
+  ArrowLeft,
+  ArrowRight,
+  AudioLines,
+  Bell,
+  ChartCandlestick,
+  ChartNoAxesColumn,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  CircleCheck,
+  CircleStop,
+  Ellipsis,
+  House,
+  Image as ImageIcon,
+  Info,
+  ListChecks,
+  Menu,
+  MessagesSquare,
+  Mic,
+  Paperclip,
+  Pause,
+  Phone,
+  Play,
+  RefreshCw,
+  Search,
+  Send,
+  Settings,
+  Target,
+  Trash2,
+  X,
+  type LucideIcon,
+} from 'lucide-react-native';
+
+/** The only icon set used by the mobile UI. */
+export const iconMap = {
+  menu: Menu,
+  home: House,
+  chats: MessagesSquare,
+  recommendations: Target,
+  tasks: ListChecks,
+  usage: ChartNoAxesColumn,
+  settings: Settings,
+  attach: Paperclip,
+  image: ImageIcon,
+  mic: Mic,
+  send: Send,
+  voice: AudioLines,
+  phone: Phone,
+  brand: ChartCandlestick,
+  candles: ChartCandlestick,
+  search: Search,
+  refresh: RefreshCw,
+  more: Ellipsis,
+  pause: Pause,
+  play: Play,
+  stop: CircleStop,
+  close: X,
+  success: CircleCheck,
+  alert: CircleAlert,
+  info: Info,
+  bell: Bell,
+  arrowLeft: ArrowLeft,
+  arrowRight: ArrowRight,
+  chevron: ChevronRight,
+  chevronBack: ChevronLeft,
+  trash: Trash2,
+  activity: Activity,
+} as const satisfies Record<string, LucideIcon>;
+
+export type IconName = keyof typeof iconMap;
+
+const activityIcons: Record<string, IconName> = {
+  market_price: 'activity',
+  market_candles: 'candles',
+  market_data_loaded: 'activity',
+  instruments: 'activity',
+  market_sessions: 'activity',
+  chart_render: 'candles',
+  chart_rendered: 'candles',
+  chart_annotation_added: 'candles',
+  web_search: 'search',
+  web_open: 'search',
+  web_extract: 'search',
+  browser_open: 'search',
+  browser_screenshot: 'image',
+  create_task: 'tasks',
+  task_created: 'tasks',
+  manage_task: 'tasks',
+  task_checked: 'tasks',
+  task_outcome: 'tasks',
+  create_recommendation: 'recommendations',
+  recommendation_created: 'recommendations',
+  recommendation_updated: 'recommendations',
+  update_recommendation: 'recommendations',
+  tool_failed: 'alert',
+  memory_search: 'search',
+  agent_started: 'activity',
+  intent_detected: 'info',
+  tool_started: 'activity',
+  tool_completed: 'success',
+  subagent_spawned: 'activity',
+  subagent_completed: 'success',
+  artifact_created: 'info',
+  notification_sent: 'bell',
+  voice_call_requested: 'voice',
+  memory_compacted: 'info',
+  delegate: 'activity',
+  create_artifact: 'info',
+};
+
+export function iconForActivity(key: string): IconName {
+  return activityIcons[key] || 'info';
+}
+
+export function backIcon(rtl: boolean): IconName {
+  return rtl ? 'arrowRight' : 'arrowLeft';
+}
+
+export function forwardIcon(rtl: boolean): IconName {
+  return rtl ? 'chevronBack' : 'chevron';
+}

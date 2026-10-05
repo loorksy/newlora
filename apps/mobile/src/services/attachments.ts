@@ -11,6 +11,11 @@ export type SelectedFile = {
 export async function pickAttachment(): Promise<SelectedFile | null> {
   return NativeModules.NewloraAttachments.pick();
 }
+export async function pickImage(): Promise<SelectedFile | null> {
+  const native = NativeModules.NewloraAttachments;
+  if (typeof native.pickImage === 'function') return native.pickImage();
+  return native.pick();
+}
 export async function uploadAttachment(
   session: string,
   file: SelectedFile,

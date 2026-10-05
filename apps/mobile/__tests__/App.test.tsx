@@ -13,12 +13,7 @@ import { ArtifactView } from '../src/components/ArtifactView';
 import { Label, Row } from '../src/components/UI';
 import { request, restore, subscribe } from '../src/services/api';
 import { parseChartCommand } from '@newlora/contracts';
-import type {
-  EventEnvelope,
-  Resource,
-  Recommendation,
-  Artifact,
-} from '@newlora/contracts';
+import type { Resource, Recommendation, Artifact } from '@newlora/contracts';
 jest.mock('../src/services/api', () => ({
   restore: jest.fn(),
   request: jest.fn(),
@@ -150,7 +145,8 @@ test.each(['ar', 'en'] as const)(
     expect(screen.getByTestId('row').props.style).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          flexDirection: lang === 'ar' ? 'row-reverse' : 'row',
+          flexDirection: 'row',
+          direction: lang === 'ar' ? 'rtl' : 'ltr',
         }),
       ]),
     );
@@ -231,6 +227,7 @@ import { Attachments } from '../src/components/Attachments';
 import { pickAttachment, uploadAttachment } from '../src/services/attachments';
 jest.mock('../src/services/attachments', () => ({
   pickAttachment: jest.fn(),
+  pickImage: jest.fn(),
   uploadAttachment: jest.fn(),
 }));
 
